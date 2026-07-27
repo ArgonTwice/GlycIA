@@ -794,6 +794,34 @@ input[type=range]::-moz-range-thumb{
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
 }
+
+/* --- Compte-rendu consultation --- */
+.rep-head{margin-bottom:14px}
+.rep-head h3{font-size:22px}
+.rep-head p{font-size:13.5px;color:var(--ink-soft);margin-top:2px}
+.rep-profile{font-size:12.5px;color:var(--violet-deep);margin-top:6px;font-weight:600}
+.rep-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+.rep-stat{background:var(--white);border-radius:var(--r-md);padding:14px 10px;text-align:center;box-shadow:var(--sh-press)}
+.rep-stat b{display:block;font-family:var(--display);font-size:26px;color:var(--peach-deep);line-height:1}
+.rep-stat span{font-size:11px;color:var(--ink-faint);display:block;margin-top:4px}
+.rep-bm{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:13px}
+.rep-bm span{width:52px;flex:none;color:var(--ink-soft)}
+.rep-bm-bar{flex:1;height:10px;border-radius:99px;background:var(--sand);overflow:hidden}
+.rep-bm-bar i{display:block;height:100%;background:var(--violet);border-radius:99px}
+.rep-bm b{width:52px;flex:none;text-align:right;font-weight:600}
+.rep-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+.rep-table th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);padding:6px 8px;border-bottom:1.5px solid var(--line)}
+.rep-table td{padding:6px 8px;border-bottom:1px solid var(--line)}
+.rep-q{padding-left:20px;font-size:14px;line-height:1.6}
+.rep-q li{margin-bottom:6px}
+
+@media print{
+  body *{visibility:hidden}
+  #m-report, #m-report *{visibility:visible}
+  #m-report{position:absolute;inset:0;background:#fff;display:block}
+  #m-report .sheet{box-shadow:none;border-radius:0;max-height:none;max-width:none;margin:0;padding:0;animation:none}
+  .no-print{display:none !important}
+}
 </style>
 </head>
 <body>
@@ -1101,6 +1129,11 @@ input[type=range]::-moz-range-thumb{
           <h4>Réglages</h4>
           <p>Clé API Claude, données enregistrées</p>
         </button>
+        <button class="tool" id="btnReport">
+          <span class="tool-ico bg-sage">📋</span>
+          <h4>Compte-rendu consultation</h4>
+          <p>4 semaines de glucides, IG, tolérance et 5 questions à poser</p>
+        </button>
         <button class="tool" id="btnScan">
           <span class="tool-ico bg-sage">📷</span>
           <h4>Scanner un code-barres</h4>
@@ -1352,6 +1385,19 @@ input[type=range]::-moz-range-thumb{
   </div>
 </div>
 
+<!-- ============ MODALE : COMPTE-RENDU CONSULTATION ============ -->
+<div class="veil" id="m-report" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+  <div class="sheet" id="reportSheet">
+    <div class="grab no-print"></div>
+    <div class="sheet-head no-print">
+      <div style="flex:1"><h2 id="reportTitle">Compte-rendu consultation</h2>
+        <p>4 semaines de données, prêtes à imprimer.</p></div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="reportBody"></div>
+  </div>
+</div>
+
 <!-- ============ MODALE : ONBOARDING ============ -->
 <div class="veil" id="m-onboard" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
   <div class="sheet">
@@ -1512,7 +1558,8 @@ const state = {
   profile: null,
   journal: [],
   analysis: null,
-  recipe: null
+  recipe: null,
+  gpLog: []
 };
 
 /* Démo pré-chargée */
@@ -1979,10 +2026,11 @@ function profileContext() {
   if (p.gp) bits.push('gastroparésie');
   return bits.length ? `Profil : ${bits.join(', ')}. ` : '';
 }
+const momentOf = h => h < 11 ? 'matin' : h < 15 ? 'midi' : h < 18 ? 'gouter' : 'soir';
+const MOMENT_LABEL = { matin: 'petit-déjeuner', midi: 'déjeuner', gouter: 'goûter', soir: 'dîner' };
 function dayContext() {
   const t = totalCarbs(), n = state.journal.length, ig = avgIg();
-  const h = new Date().getHours();
-  const moment = h < 11 ? 'petit-déjeuner' : h < 15 ? 'déjeuner' : h < 18 ? 'goûter' : 'dîner';
+  const moment = MOMENT_LABEL[momentOf(new Date().getHours())];
   const profil = profileContext();
   if (!n) return `${profil}Premier repas noté de la journée, plutôt un ${moment}. Repère indicatif quotidien : ${REPERE} g de glucides.`;
   return `${profil}Déjà ${n} repas noté${n > 1 ? 's' : ''} aujourd'hui, ${t} g de glucides cumulés, IG moyen pondéré ${ig}. `
@@ -3056,19 +3104,27 @@ renderFoods();
 const DAYNAME = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 const PAST = [];
 
+/* Répartit un total de glucides sur les 4 moments, pondéré comme une vraie journée type */
+function splitByMoment(total, seed) {
+  const w = [0.22 + (seed % 5) * .01, 0.34 - (seed % 3) * .01, 0.14 + (seed % 4) * .01, 0];
+  w[3] = 1 - w[0] - w[1] - w[2];
+  return { matin: Math.round(total * w[0]), midi: Math.round(total * w[1]), gouter: Math.round(total * w[2]), soir: Math.round(total * w[3]) };
+}
 function seedPast() {
-  const base = [148, 172, 96, 205, 133, 161];
-  const igs  = [58, 63, 44, 68, 51, 57];
-  for (let i = 6; i >= 1; i--) {
+  const base = [148, 172, 96, 205, 133, 161, 158, 121, 189, 143, 167, 102, 176, 155, 130, 198, 149, 168, 111, 182, 137, 160, 174, 128, 191, 146, 163];
+  const igs  = [58, 63, 44, 68, 51, 57, 60, 47, 65, 55, 59, 45, 66, 56, 50, 69, 58, 61, 46, 67, 53, 58, 62, 49, 68, 54, 60];
+  const n = base.length;
+  for (let i = n; i >= 1; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
-    PAST.push({ d, carbs: base[6 - i], ig: igs[6 - i], meals: 3 + (i % 2) });
+    const carbs = base[n - i], meals = 3 + (i % 2);
+    PAST.push({ d, carbs, ig: igs[n - i], meals, byMoment: splitByMoment(carbs, i) });
   }
 }
 
 let weekSel = 6;
 function renderWeek() {
   const today = { d: new Date(), carbs: totalCarbs(), ig: avgIg() || 0, meals: state.journal.length };
-  const days = PAST.concat([today]);
+  const days = PAST.slice(-6).concat([today]);
   const max = Math.max(REPERE, ...days.map(x => x.carbs)) * 1.12;
   const W = 322, H = 132, bw = 30, gap = (W - 7 * bw) / 8;
 
@@ -3182,7 +3238,6 @@ $('#btnResto').addEventListener('click', nearbyRestos);
 /* ---------- Rendu ---------- */
 let gpPhase = 3, gpLvl = 0, gpQ = '';
 const GP_LVL = { 1:['ok','Bien toléré'], 2:['mid','Avec prudence'], 3:['no','À éviter'] };
-const gpLog = [];
 
 function renderGastro() {
   $('#gpPhases').innerHTML = GP_PHASES.map(p => `
@@ -3270,18 +3325,19 @@ $('#gpFeel').innerHTML = GP_FEEL.map((f, i) => `<button class="gp-feel" data-fee
 $$('#gpFeel [data-feel]').forEach(b => b.onclick = () => {
   const f = GP_FEEL[+b.dataset.feel];
   const last = [...state.journal].sort((a, x) => x.time - a.time)[0];
-  gpLog.unshift({ t: new Date(), f, meal: last ? last.name : 'hors repas' });
-  if (gpLog.length > 12) gpLog.pop();
+  state.gpLog.unshift({ t: new Date(), f, meal: last ? last.name : 'hors repas' });
+  if (state.gpLog.length > 40) state.gpLog.pop();
   renderGpLog();
+  saveState();
   toast('Noté. C\'est ce journal qui fera ta liste personnelle.');
 });
 
 function renderGpLog() {
-  if (!gpLog.length) {
+  if (!state.gpLog.length) {
     $('#gpLog').innerHTML = `<p class="foot-note" style="margin:6px 0 0">Rien de noté. Après chaque repas, un tap suffit — au bout de deux semaines tu sauras exactement ce qui passe chez toi.</p>`;
     return;
   }
-  $('#gpLog').innerHTML = gpLog.map(l => `
+  $('#gpLog').innerHTML = state.gpLog.slice(0, 12).map(l => `
     <div class="gp-f ${l.f[2]}" style="margin-bottom:6px">
       <span class="gp-dot"></span>
       <div><b>${l.f[0]} ${esc(l.f[1])}</b><p>${hhmm(l.t)} · ${esc(l.meal)}</p></div>
@@ -3574,7 +3630,8 @@ function saveState() {
     journal: state.journal.map(m => ({ ...m, time: m.time.toISOString() })),
     favorites: FAVORITES,
     gp: state.gp,
-    past: PAST.map(p => ({ d: p.d.toISOString(), carbs: p.carbs, ig: p.ig, meals: p.meals }))
+    past: PAST.map(p => ({ d: p.d.toISOString(), carbs: p.carbs, ig: p.ig, meals: p.meals, byMoment: p.byMoment })),
+    gpLog: state.gpLog.map(l => ({ t: l.t.toISOString(), f: l.f, meal: l.meal }))
   }));
 }
 
@@ -3585,6 +3642,7 @@ function loadState() {
     const o = JSON.parse(raw);
     if (o.favorites && o.favorites.length) { FAVORITES.length = 0; FAVORITES.push(...o.favorites); }
     if (o.past && o.past.length) { PAST.length = 0; PAST.push(...o.past.map(p => ({ ...p, d: new Date(p.d) }))); }
+    if (o.gpLog && o.gpLog.length) { state.gpLog.length = 0; state.gpLog.push(...o.gpLog.map(l => ({ ...l, t: new Date(l.t) }))); }
 
     if (o.day === dayKey(new Date())) {
       state.journal = (o.journal || []).map(m => ({ ...m, time: new Date(m.time) }));
@@ -3592,8 +3650,10 @@ function loadState() {
       /* nouveau jour : la veille bascule dans l'historique */
       const c = o.journal.reduce((s, m) => s + m.carbs, 0);
       const num = o.journal.reduce((s, m) => s + m.ig * m.carbs, 0);
-      PAST.push({ d: new Date(o.day + 'T12:00:00'), carbs: c, ig: c ? Math.round(num / c) : 0, meals: o.journal.length });
-      while (PAST.length > 6) PAST.shift();
+      const byMoment = { matin: 0, midi: 0, gouter: 0, soir: 0 };
+      o.journal.forEach(m => { byMoment[momentOf(new Date(m.time).getHours())] += m.carbs; });
+      PAST.push({ d: new Date(o.day + 'T12:00:00'), carbs: c, ig: c ? Math.round(num / c) : 0, meals: o.journal.length, byMoment });
+      while (PAST.length > 28) PAST.shift();
       state.journal = [];
     }
     if (o.gp) setTimeout(() => setGp(true), 0);
@@ -3822,6 +3882,148 @@ if ('serviceWorker' in navigator) {
 }
 
 /* ==========================================================================
+   22. COMPTE-RENDU CONSULTATION — récap 4 semaines, imprimable
+   ========================================================================== */
+function buildReportData() {
+  const today = {
+    d: new Date(), carbs: totalCarbs(), ig: avgIg() || 0, meals: state.journal.length,
+    byMoment: state.journal.reduce((acc, m) => { acc[momentOf(m.time.getHours())] += m.carbs; return acc; }, { matin: 0, midi: 0, gouter: 0, soir: 0 })
+  };
+  const days = PAST.slice(-27).concat([today]);
+  const avgCarbs = Math.round(days.reduce((s, x) => s + x.carbs, 0) / days.length);
+  const igDays = days.filter(x => x.carbs > 0);
+  const igCarbs = igDays.reduce((s, x) => s + x.carbs, 0);
+  const igAvg = igCarbs ? Math.round(igDays.reduce((s, x) => s + x.ig * x.carbs, 0) / igCarbs) : 0;
+  const byMomentTotal = days.reduce((acc, x) => {
+    const bm = x.byMoment || {};
+    for (const k of ['matin', 'midi', 'gouter', 'soir']) acc[k] += bm[k] || 0;
+    return acc;
+  }, { matin: 0, midi: 0, gouter: 0, soir: 0 });
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 28);
+  const gpEntries = state.gpLog.filter(l => l.t >= cutoff);
+  return { days, avgCarbs, igAvg, byMomentTotal, from: days[0].d, to: days[days.length - 1].d, gpEntries };
+}
+
+function reportSummaryText(d) {
+  const bm = d.byMomentTotal;
+  return `${profileContext()}Période : ${d.days.length} jours, du ${d.from.toLocaleDateString('fr-FR')} au ${d.to.toLocaleDateString('fr-FR')}. `
+    + `Moyenne ${d.avgCarbs} g de glucides par jour, IG moyen pondéré ${d.igAvg}. `
+    + `Répartition cumulée par moment : matin ${bm.matin} g, midi ${bm.midi} g, goûter ${bm.gouter} g, soir ${bm.soir} g. `
+    + (d.gpEntries.length
+        ? `Tolérance digestive : ${d.gpEntries.length} épisodes notés sur la période, dont ${d.gpEntries.filter(l => l.f[2] === 'no').length} mal tolérés. `
+        : 'Pas de journal de tolérance digestive sur la période. ')
+    + `Repère indicatif quotidien : ${REPERE} g.`;
+}
+
+const REPORT_RULES = () => `Tu prépares 5 questions pour la consultation de suivi diabète d'un patient qui utilise GlycIA, une application de journal alimentaire.
+
+Réponds UNIQUEMENT par un objet JSON valide, sans aucun texte autour et sans balises Markdown.
+Format exact attendu : {"questions":["...","...","...","...","..."]}
+Règles :
+- Exactement 5 questions, une phrase chacune, au tutoiement, à poser au médecin ou à se poser soi-même avant le rendez-vous.
+- Base-toi sur les chiffres fournis : tendance des glucides, répartition par moment, IG moyen, tolérance digestive si présente.
+- Chaque question référence un chiffre ou un motif précis des données fournies, jamais de généralité creuse.
+- Jamais de dose d'insuline, jamais de diagnostic, jamais de jugement sur les choix alimentaires.`;
+
+async function askConsultQuestions(summaryText) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const r = await fetch(aiURL(), {
+      method: 'POST',
+      headers: aiHeaders(),
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        model: VISION.model,
+        max_tokens: 500,
+        system: [{ type: 'text', text: REPORT_RULES(), cache_control: { type: 'ephemeral' } }],
+        messages: [{ role: 'user', content: [{ type: 'text', text: summaryText }] }]
+      })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = pickJSON(await r.json());
+    const qs = (j.questions || []).filter(q => q).map(q => String(q).slice(0, 220)).slice(0, 5);
+    return qs.length ? qs : null;
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+const FALLBACK_QUESTIONS = [
+  "Ma répartition de glucides par moment de la journée te semble-t-elle adaptée ?",
+  "Comment lire mon IG moyen pondéré sur ces 4 semaines : faut-il viser plus bas ?",
+  "Faut-il ajuster mon repère quotidien au vu du bilan de la période ?",
+  "Les épisodes de tolérance digestive notés changent-ils quelque chose au suivi ?",
+  "Y a-t-il un motif dans mes journées les plus chargées en glucides ?"
+];
+
+function reportSkeleton(d, questions) {
+  const bm = d.byMomentTotal;
+  const bmTotal = bm.matin + bm.midi + bm.gouter + bm.soir || 1;
+  const bmRow = (label, v) => `
+    <div class="rep-bm"><span>${label}</span><div class="rep-bm-bar"><i style="width:${Math.round(v / bmTotal * 100)}%"></i></div><b>${v} g</b></div>`;
+  const rows = d.days.slice().reverse().map(x => `
+    <tr><td>${x.d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}</td><td>${x.carbs} g</td><td>${x.ig || '—'}</td><td>${x.meals}</td></tr>`).join('');
+  const gpRows = d.gpEntries.length
+    ? d.gpEntries.map(l => `
+      <tr><td>${l.t.toLocaleDateString('fr-FR', { day:'numeric', month:'short' })}</td><td>${l.f[0]} ${esc(l.f[1])}</td><td>${esc(l.meal)}</td></tr>`).join('')
+    : `<tr><td colspan="3" style="color:var(--ink-faint)">Rien de noté sur la période.</td></tr>`;
+  const qList = questions
+    ? `<ol class="rep-q">${questions.map(q => `<li>${esc(q)}</li>`).join('')}</ol>`
+    : `<p class="foot-note">Questions en préparation…</p>`;
+
+  return `
+    <div class="rep-head">
+      <h3>Compte-rendu GlycIA</h3>
+      <p>${d.from.toLocaleDateString('fr-FR', { day:'numeric', month:'long' })} — ${d.to.toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })} · ${d.days.length} jours</p>
+      ${profileContext() ? `<p class="rep-profile">${esc(profileContext())}</p>` : ''}
+    </div>
+
+    <div class="rep-stats">
+      <div class="rep-stat"><b>${d.avgCarbs}</b><span>g / jour en moyenne</span></div>
+      <div class="rep-stat"><b>${d.igAvg}</b><span>IG moyen pondéré</span></div>
+      <div class="rep-stat"><b>${d.gpEntries.length}</b><span>épisodes de tolérance notés</span></div>
+    </div>
+
+    <h4>Répartition par moment</h4>
+    ${bmRow('Matin', bm.matin)}${bmRow('Midi', bm.midi)}${bmRow('Goûter', bm.gouter)}${bmRow('Soir', bm.soir)}
+
+    <h4 style="margin-top:18px">Glucides par jour</h4>
+    <table class="rep-table"><thead><tr><th>Jour</th><th>Glucides</th><th>IG</th><th>Repas</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+
+    <h4 style="margin-top:18px">Journal de tolérance digestive</h4>
+    <table class="rep-table"><thead><tr><th>Date</th><th>Ressenti</th><th>Repas</th></tr></thead>
+      <tbody>${gpRows}</tbody></table>
+
+    <h4 style="margin-top:18px">5 questions pour la consultation</h4>
+    ${qList}
+
+    <div class="sheet-foot no-print">
+      <button class="btn btn-ghost" data-close>Fermer</button>
+      <button class="btn btn-primary btn-block" id="btnPrintReport"><svg><use href="#i-check"/></svg> Imprimer / Enregistrer en PDF</button>
+    </div>
+    <p class="foot-note no-print" style="margin-top:10px">Rien n'est envoyé nulle part pour générer ce document, hors les 5 questions au médecin (si Claude est configuré).</p>`;
+}
+
+function bindReportPrint() {
+  const b = $('#btnPrintReport');
+  if (b) b.onclick = () => window.print();
+}
+
+async function buildAndRenderReport() {
+  const d = buildReportData();
+  $('#reportBody').innerHTML = reportSkeleton(d, null);
+  bindReportPrint();
+  const qs = hasAI() ? await askConsultQuestions(reportSummaryText(d)) : null;
+  $('#reportBody').innerHTML = reportSkeleton(d, qs || FALLBACK_QUESTIONS);
+  bindReportPrint();
+}
+$('#btnReport').addEventListener('click', () => { openModal('report'); buildAndRenderReport(); });
+
+/* ==========================================================================
    13. INIT
    ========================================================================== */
 $('#goGastro').addEventListener('click', () => go('gastro'));
@@ -3835,6 +4037,7 @@ renderFavorites();
 setMascot('hello');
 renderDay();
 findRecipe();
+renderGpLog();
 const sharedIncoming = new URLSearchParams(location.search).get('partage') === '1';
 if (!store.get('glycia.onboarded') && !sharedIncoming) openModal('onboard');
 checkQuickAddParam();

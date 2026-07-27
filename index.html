@@ -795,6 +795,34 @@ input[type=range]::-moz-range-thumb{
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
 }
+
+/* --- Compte-rendu consultation --- */
+.rep-head{margin-bottom:14px}
+.rep-head h3{font-size:22px}
+.rep-head p{font-size:13.5px;color:var(--ink-soft);margin-top:2px}
+.rep-profile{font-size:12.5px;color:var(--violet-deep);margin-top:6px;font-weight:600}
+.rep-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+.rep-stat{background:var(--white);border-radius:var(--r-md);padding:14px 10px;text-align:center;box-shadow:var(--sh-press)}
+.rep-stat b{display:block;font-family:var(--display);font-size:26px;color:var(--peach-deep);line-height:1}
+.rep-stat span{font-size:11px;color:var(--ink-faint);display:block;margin-top:4px}
+.rep-bm{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:13px}
+.rep-bm span{width:52px;flex:none;color:var(--ink-soft)}
+.rep-bm-bar{flex:1;height:10px;border-radius:99px;background:var(--sand);overflow:hidden}
+.rep-bm-bar i{display:block;height:100%;background:var(--violet);border-radius:99px}
+.rep-bm b{width:52px;flex:none;text-align:right;font-weight:600}
+.rep-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+.rep-table th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);padding:6px 8px;border-bottom:1.5px solid var(--line)}
+.rep-table td{padding:6px 8px;border-bottom:1px solid var(--line)}
+.rep-q{padding-left:20px;font-size:14px;line-height:1.6}
+.rep-q li{margin-bottom:6px}
+
+@media print{
+  body *{visibility:hidden}
+  #m-report, #m-report *{visibility:visible}
+  #m-report{position:absolute;inset:0;background:#fff;display:block}
+  #m-report .sheet{box-shadow:none;border-radius:0;max-height:none;max-width:none;margin:0;padding:0;animation:none}
+  .no-print{display:none !important}
+}
 </style>
 </head>
 <body>
@@ -1102,6 +1130,11 @@ input[type=range]::-moz-range-thumb{
           <h4>Réglages</h4>
           <p>Clé API Claude, données enregistrées</p>
         </button>
+        <button class="tool" id="btnReport">
+          <span class="tool-ico bg-sage">📋</span>
+          <h4>Compte-rendu consultation</h4>
+          <p>4 semaines de glucides, IG, tolérance et 5 questions à poser</p>
+        </button>
         <button class="tool" id="btnScan">
           <span class="tool-ico bg-sage">📷</span>
           <h4>Scanner un code-barres</h4>
@@ -1350,6 +1383,19 @@ input[type=range]::-moz-range-thumb{
       <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
     </div>
     <div id="trayBody"></div>
+  </div>
+</div>
+
+<!-- ============ MODALE : COMPTE-RENDU CONSULTATION ============ -->
+<div class="veil" id="m-report" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+  <div class="sheet" id="reportSheet">
+    <div class="grab no-print"></div>
+    <div class="sheet-head no-print">
+      <div style="flex:1"><h2 id="reportTitle">Compte-rendu consultation</h2>
+        <p>4 semaines de données, prêtes à imprimer.</p></div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="reportBody"></div>
   </div>
 </div>
 
