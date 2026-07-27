@@ -15,7 +15,7 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const round = (n, d = 0) => { const p = 10 ** d; return Math.round(n * p) / p; };
 
 /* ---------- Repère quotidien indicatif ---------- */
-const REPERE = 180; // g de glucides, purement indicatif
+let REPERE = 180; // g de glucides, purement indicatif — ajusté après l'onboarding (voir repereFor())
 
 /* ==========================================================================
    1. MASCOTTE — SVG généré, expressions contextuelles
@@ -117,6 +117,7 @@ function refreshBubble() {
    ========================================================================== */
 const state = {
   gp: false,
+  profile: null,
   journal: [],
   analysis: null,
   recipe: null
@@ -291,6 +292,7 @@ function closeModal(m) {
   if (m.id === 'm-shoot') stopCam();
   if (m.id === 'm-scan' && typeof stopBd === 'function') stopBd();
   if (m.id === 'm-sos' && typeof exitHypo === 'function') exitHypo();
+  if (m.id === 'm-onboard' && typeof finishOnboarding === 'function') finishOnboarding();
   m.classList.remove('on');
   document.body.style.overflow = '';
   if (lastFocus) lastFocus.focus();
@@ -575,12 +577,23 @@ async function openCam() {
 /* ---------- C. Vision Claude : contexte de la journée + cache ---------- */
 
 /* [A] Ce que Claude doit savoir de la journée pour conseiller juste */
+const TREAT_LABEL = { insuline: 'insuline', oral: 'traitement oral', alimentaire: 'alimentaire seul' };
+function profileContext() {
+  const p = state.profile;
+  if (!p || (!p.type && !p.treatment && !p.gp)) return '';
+  const bits = [];
+  if (p.type) bits.push(`diabète type ${p.type}`);
+  if (p.treatment) bits.push(TREAT_LABEL[p.treatment] || p.treatment);
+  if (p.gp) bits.push('gastroparésie');
+  return bits.length ? `Profil : ${bits.join(', ')}. ` : '';
+}
 function dayContext() {
   const t = totalCarbs(), n = state.journal.length, ig = avgIg();
   const h = new Date().getHours();
   const moment = h < 11 ? 'petit-déjeuner' : h < 15 ? 'déjeuner' : h < 18 ? 'goûter' : 'dîner';
-  if (!n) return `Premier repas noté de la journée, plutôt un ${moment}. Repère indicatif quotidien : ${REPERE} g de glucides.`;
-  return `Déjà ${n} repas noté${n > 1 ? 's' : ''} aujourd'hui, ${t} g de glucides cumulés, IG moyen pondéré ${ig}. `
+  const profil = profileContext();
+  if (!n) return `${profil}Premier repas noté de la journée, plutôt un ${moment}. Repère indicatif quotidien : ${REPERE} g de glucides.`;
+  return `${profil}Déjà ${n} repas noté${n > 1 ? 's' : ''} aujourd'hui, ${t} g de glucides cumulés, IG moyen pondéré ${ig}. `
        + `Repère indicatif quotidien : ${REPERE} g. Ce repas-ci est plutôt un ${moment}. `
        + `Détail de la journée : ${state.journal.map(m => `${m.name} (${m.carbs} g, IG ${m.ig})`).join(' ; ')}.`;
 }
@@ -2257,10 +2270,52 @@ function renderSettings() {
   };
   $('#wipe').onclick = () => {
     store.del('glycia.data'); store.del('glycia.key'); store.del('glycia.proxy');
+    store.del('glycia.onboarded'); store.del('glycia.profile');
     location.reload();
   };
 }
 $('#btnSet').addEventListener('click', () => { renderSettings(); openModal('set'); });
+
+/* ==========================================================================
+   18. ONBOARDING — 3 questions au premier lancement
+   ========================================================================== */
+/* Un repère plus serré pour les traitements sans couverture insulinique rapide */
+function repereFor(p) {
+  if (!p) return 180;
+  if (p.treatment === 'alimentaire') return 130;
+  if (p.treatment === 'oral') return 150;
+  return 180;
+}
+$('#m-onboard').addEventListener('click', e => {
+  const b = e.target.closest('[data-obq]');
+  if (!b) return;
+  $$(`#m-onboard [data-obq="${b.dataset.obq}"]`).forEach(x => x.classList.toggle('on', x === b));
+});
+function applyProfile(p, setGpNow) {
+  state.profile = p;
+  REPERE = repereFor(p);
+  /* Au chargement, loadState() restaure déjà state.gp — inutile de rejouer setGp() et son message */
+  if (setGpNow && p.gp && !state.gp) setGp(true);
+  renderDay();
+}
+function finishOnboarding() {
+  const type  = $('#m-onboard [data-obq="type"].on');
+  const treat = $('#m-onboard [data-obq="treat"].on');
+  const gp    = $('#m-onboard [data-obq="gp"].on');
+  const profile = {
+    type: type ? +type.dataset.obv : null,
+    treatment: treat ? treat.dataset.obv : null,
+    gp: gp ? gp.dataset.obv === '1' : false
+  };
+  store.set('glycia.onboarded', '1');
+  store.set('glycia.profile', JSON.stringify(profile));
+  applyProfile(profile, true);
+}
+function loadProfile() {
+  const raw = store.get('glycia.profile');
+  if (!raw) return;
+  try { applyProfile(JSON.parse(raw)); } catch (_) {}
+}
 
 /* ==========================================================================
    13. INIT
@@ -2271,9 +2326,11 @@ $('#btnScan2').addEventListener('click', openScan);
 $('#todayLabel').textContent = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
 seedPast();
 if (!loadState()) seed();
+loadProfile();
 renderFavorites();
 setMascot('hello');
 renderDay();
 findRecipe();
+if (!store.get('glycia.onboarded')) openModal('onboard');
 
 })();

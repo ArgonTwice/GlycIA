@@ -1353,6 +1353,43 @@ input[type=range]::-moz-range-thumb{
   </div>
 </div>
 
+<!-- ============ MODALE : ONBOARDING ============ -->
+<div class="veil" id="m-onboard" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1">
+        <h2 id="onboardTitle">Trois questions, une fois</h2>
+        <p>Ça ajuste le repère et les conseils à ta situation. Modifiable plus tard dans Réglages.</p>
+      </div>
+    </div>
+
+    <div class="eyebrow" style="margin-bottom:2px">Type de diabète</div>
+    <div class="chips">
+      <button class="cat" data-obq="type" data-obv="1">Type 1</button>
+      <button class="cat" data-obq="type" data-obv="2">Type 2</button>
+    </div>
+
+    <div class="eyebrow" style="margin:16px 0 2px">Traitement</div>
+    <div class="chips">
+      <button class="cat" data-obq="treat" data-obv="insuline">Insuline</button>
+      <button class="cat" data-obq="treat" data-obv="oral">Traitement oral</button>
+      <button class="cat" data-obq="treat" data-obv="alimentaire">Alimentaire seul</button>
+    </div>
+
+    <div class="eyebrow" style="margin:16px 0 2px">Gastroparésie (estomac lent)</div>
+    <div class="chips">
+      <button class="cat" data-obq="gp" data-obv="1">Oui</button>
+      <button class="cat" data-obq="gp" data-obv="0">Non</button>
+    </div>
+
+    <div class="sheet-foot" style="margin-top:22px">
+      <button class="btn btn-ghost" data-close>Passer</button>
+      <button class="btn btn-primary btn-block" data-close><svg><use href="#i-check"/></svg> C'est parti</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="./app.js"></script>
 </body>
 </html>
