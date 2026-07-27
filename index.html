@@ -960,6 +960,11 @@ input[type=range]::-moz-range-thumb{
           <h4>Ramadan</h4>
           <p>Suhoor, iftar, et le rythme qui s'inverse</p>
         </button>
+        <button class="tool" id="goGE2">
+          <span class="tool-ico bg-violet">🤢</span>
+          <h4>Gastro-entérite</h4>
+          <p>Hydratation d'abord, reprise alimentaire ensuite</p>
+        </button>
         <button class="tool" id="btnScan2">
           <span class="tool-ico bg-sage">📷</span>
           <h4>Code-barres</h4>
@@ -1166,6 +1171,66 @@ input[type=range]::-moz-range-thumb{
     </p>
   </section>
 
+  <!-- ============ VUE : GASTRO-ENTÉRITE ============ -->
+  <section class="view" id="v-ge">
+    <div class="gp-hero">
+      <h3>Hydratation d'abord, alimentation ensuite</h3>
+      <p>Une gastro-entérite déshydrate vite et rend la glycémie imprévisible. La priorité n'est pas
+      de manger normalement le plus vite possible, mais de bien s'hydrater puis de reprendre
+      l'alimentation par étapes, en douceur.</p>
+      <p style="margin-top:10px"><b style="color:var(--violet-deep)">Ce qu'on peut faire :</b> des liquides
+      clairs en petites gorgées, puis une alimentation fade et pauvre en graisses, réintroduite progressivement.</p>
+    </div>
+
+    <label class="sw" style="margin-bottom:14px">
+        <span class="tool-ico bg-violet" style="width:42px;height:42px;border-radius:13px;display:grid;place-content:center">🤢</span>
+        <span class="swt"><b>Mode gastro-entérite</b><span>Repères d'hydratation et de reprise alimentaire pendant l'épisode</span></span>
+        <input type="checkbox" data-gesw role="switch" aria-checked="false" aria-label="Activer le mode gastro-entérite">
+      </label>
+
+    <div class="sect" style="margin-top:0">
+      <div class="sect-head"><h3>Où tu en es</h3></div>
+      <div class="rail" id="gePhases"></div>
+      <div class="card" id="gePhaseCard" style="margin-top:4px"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Les réflexes qui changent tout</h3></div>
+      <div id="geTips"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Qu'est-ce qui passe ?</h3><span class="link" id="geCount"></span></div>
+      <div class="searchbox" style="margin-bottom:10px">
+        <svg><use href="#i-search"/></svg>
+        <input id="geQ" type="search" autocomplete="off" placeholder="Riz, banane, lait…" aria-label="Chercher un aliment">
+      </div>
+      <div class="rail cats" id="geLvls"></div>
+      <div id="geFoods"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Recettes de reprise</h3></div>
+      <div id="geRecipes"></div>
+    </div>
+
+    <div class="sect">
+      <div class="gp-alert">
+        <h4>Quand il faut consulter</h4>
+        <ul id="geAlert"></ul>
+        <p style="font-size:13px;color:var(--ink-soft);margin-top:10px;line-height:1.45">
+          En cas de doute ou de malaise : le <b>15</b> (ou le 112).
+        </p>
+      </div>
+    </div>
+
+    <p class="foot-note">
+      Ces repères sont généraux et portent uniquement sur l'hydratation et la composition des repas.
+      <b>Ils ne remplacent aucun avis médical, et ton traitement ne doit jamais être modifié
+      de ta propre initiative — toujours avec ton médecin.</b>
+    </p>
+  </section>
+
   <!-- ============ VUE : OUTILS ============ -->
   <section class="view" id="v-tools">
     <div class="sect" style="margin-top:6px">
@@ -1178,6 +1243,11 @@ input[type=range]::-moz-range-thumb{
         <span class="tool-ico bg-violet" style="width:42px;height:42px;border-radius:13px;display:grid;place-content:center">🌙</span>
         <span class="swt"><b>Mode Ramadan</b><span>Suhoor et iftar plutôt que les repères habituels de la journée</span></span>
         <input type="checkbox" data-ramsw role="switch" aria-checked="false" aria-label="Activer le mode Ramadan">
+      </label>
+      <label class="sw" style="margin-bottom:14px">
+        <span class="tool-ico bg-violet" style="width:42px;height:42px;border-radius:13px;display:grid;place-content:center">🤢</span>
+        <span class="swt"><b>Mode gastro-entérite</b><span>Repères d'hydratation et de reprise alimentaire pendant l'épisode</span></span>
+        <input type="checkbox" data-gesw role="switch" aria-checked="false" aria-label="Activer le mode gastro-entérite">
       </label>
       <div class="sect-head"><h3>La boîte à outils</h3></div>
       <div class="tools">
@@ -1210,6 +1280,11 @@ input[type=range]::-moz-range-thumb{
           <span class="tool-ico bg-violet">🌙</span>
           <h4>Ramadan</h4>
           <p>Phases, aliments par créneau, recettes suhoor et iftar</p>
+        </button>
+        <button class="tool" id="goGE">
+          <span class="tool-ico bg-violet">🤢</span>
+          <h4>Gastro-entérite</h4>
+          <p>Phases, aliments de reprise, recettes fades</p>
         </button>
         <button class="tool" id="btnSet">
           <span class="tool-ico bg-violet">⚙️</span>

@@ -7,7 +7,7 @@
 
 /* Données séparées : chargées en parallèle du script, mises en cache par le SW */
 const DB = await (await fetch(new URL('./db.json', import.meta.url))).json();
-const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT } = DB;
+const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT, GE_PHASES, GE_TIPS, GE_FOODS, GE_RECIPES, GE_ALERT } = DB;
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -118,6 +118,7 @@ function refreshBubble() {
 const state = {
   gp: false,
   ramadan: false,
+  ge: false,
   profile: null,
   journal: [],
   analysis: null,
@@ -587,6 +588,7 @@ function profileContext() {
   if (p && p.treatment) bits.push(TREAT_LABEL[p.treatment] || p.treatment);
   if (p && p.gp) bits.push('gastroparésie');
   if (state.ramadan) bits.push('mois de Ramadan (jeûne)');
+  if (state.ge) bits.push('épisode de gastro-entérite en cours');
   return bits.length ? `Profil : ${bits.join(', ')}. ` : '';
 }
 const momentOf = h => h < 11 ? 'matin' : h < 15 ? 'midi' : h < 18 ? 'gouter' : 'soir';
@@ -2021,6 +2023,118 @@ RECIPES.push(...RAM_AS_RECIPES);
 renderRamadan();
 
 /* ==========================================================================
+   26. MODE GASTRO-ENTÉRITE — protocole de réhydratation et reprise alimentaire
+   Même structure que les modes gastroparésie / Ramadan : phases, filtre local,
+   recettes. Aucune consigne de traitement : hydratation et composition des
+   repas uniquement, jamais de dose. « GE » ici = Gastro-Entérite, à ne pas
+   confondre avec le mode Gastroparésie (state.gp) qui reste indépendant.
+   ========================================================================== */
+let gePhase = 1, geLvl = 0, geQ = '', geOpenR = -1;
+const GE_LVL = { 1:['ok','Recommandé'], 2:['mid','Avec prudence'], 3:['no','Mieux éviter'] };
+
+function renderGE() {
+  $$('[data-gesw]').forEach(el => { el.checked = state.ge; el.setAttribute('aria-checked', String(state.ge)); });
+
+  $('#gePhases').innerHTML = GE_PHASES.map(p => `
+    <button class="gp-ph ${gePhase === p.id ? 'on' : ''}" data-geph="${p.id}">
+      <span class="e">${p.e}</span><b>${esc(p.t)}</b><span class="s">${esc(p.s)}</span>
+    </button>`).join('');
+  $$('#gePhases [data-geph]').forEach(b => b.onclick = () => { gePhase = +b.dataset.geph; renderGE(); });
+
+  const p = GE_PHASES.find(x => x.id === gePhase);
+  $('#gePhaseCard').innerHTML = `
+    <p style="font-size:14.5px;line-height:1.5;color:var(--ink)">${esc(p.d)}</p>
+    <div class="gp-ex">${p.ex.map(x => `<span>${esc(x)}</span>`).join('')}</div>
+    <div class="glycia-note" style="margin-top:14px">
+      <div class="ava sm" aria-hidden="true" style="width:34px;height:34px">${mascotSVG('care')}</div>
+      <div><span class="who">GlycIA —</span> ${esc(p.note)}</div>
+    </div>`;
+
+  $('#geTips').innerHTML = GE_TIPS.map(([e, t, d]) => `
+    <div class="gp-tip"><span class="e">${e}</span><div><b>${esc(t)}</b><p>${esc(d)}</p></div></div>`).join('');
+
+  renderGeFoods();
+
+  $('#geRecipes').innerHTML = GE_RECIPES.map((r, i) => `
+    <div class="frow ${geOpenR === i ? 'open' : ''}">
+      <button class="fhead" data-ger="${i}">
+        <span class="fe">${GE_PHASES.find(x => x.id === r.ph).e}</span>
+        <span class="fn"><b>${esc(r.t)}</b><span>Phase ${r.ph} · ${r.min} min · ${igLabel(r.ig)}</span></span>
+        <span class="fc"><b>${r.c}</b><span>g gluc.</span></span>
+      </button>
+      <div class="fdet">
+        <div class="fgrid">
+          <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig || '—'}</b><span>Indice IG</span></div>
+          <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
+        </div>
+        <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
+        ${r.i.map(x => `<div class="gp-ing">${esc(x)}</div>`).join('')}
+        <div class="eyebrow" style="margin:14px 0 8px">Préparation</div>
+        ${r.s.map((x, k) => `<div class="stepline"><span class="n" style="background:var(--violet)">${k + 1}</span><div class="txt">${esc(x)}</div></div>`).join('')}
+        <div class="glycia-note" style="margin:10px 0 12px">
+          <div class="ava sm" aria-hidden="true" style="width:34px;height:34px">${mascotSVG('happy')}</div>
+          <div><span class="who">GlycIA —</span> ${esc(r.n)}</div>
+        </div>
+        <button class="btn btn-primary btn-block" data-geeat="${i}">🍽️ Passer à table</button>
+      </div>
+    </div>`).join('');
+  $$('#geRecipes [data-ger]').forEach(b => b.onclick = () => { geOpenR = geOpenR === +b.dataset.ger ? -1 : +b.dataset.ger; renderGE(); });
+  $$('#geRecipes [data-geeat]').forEach(b => b.onclick = () => {
+    const r = GE_RECIPES[+b.dataset.geeat];
+    addMeal({ icon:'🥣', name: r.t, carbs: r.c, ig: r.ig, src:'recette' });
+    toast('Ajouté au journal. Doucement, par petites quantités.');
+  });
+
+  $('#geAlert').innerHTML = GE_ALERT.map(x => `<li>${esc(x)}</li>`).join('');
+}
+
+function renderGeFoods() {
+  $('#geLvls').innerHTML = [[0,'Tout'], [1,'✅ Recommandé'], [2,'⚠️ Prudence'], [3,'⛔ À éviter']]
+    .map(([v, l]) => `<button class="cat ${geLvl === v ? 'on' : ''}" data-gel="${v}">${l}</button>`).join('');
+  $$('#geLvls [data-gel]').forEach(b => b.onclick = () => { geLvl = +b.dataset.gel; renderGeFoods(); });
+
+  let n = 0;
+  const html = Object.entries(GE_FOODS).map(([cat, list]) => {
+    const rows = list.filter(([nm, lv]) =>
+      (!geLvl || lv === geLvl) && (!geQ || normalize(nm + ' ' + cat).includes(geQ)));
+    if (!rows.length) return '';
+    n += rows.length;
+    return `<div class="gp-cat">${esc(cat)}</div>` + rows.map(([nm, lv, why]) => `
+      <div class="gp-f ${GE_LVL[lv][0]}">
+        <span class="gp-dot"></span>
+        <div><b>${esc(nm)}</b><p>${esc(why)}</p></div>
+      </div>`).join('');
+  }).join('');
+  $('#geFoods').innerHTML = html || `<div class="empty"><strong>Aucun aliment</strong>Change de filtre ou vide la recherche.</div>`;
+  $('#geCount').textContent = n ? `${n} aliment${n > 1 ? 's' : ''}` : '';
+}
+$('#geQ').addEventListener('input', e => { geQ = normalize(e.target.value.trim()); renderGeFoods(); });
+
+function setGe(v) {
+  state.ge = v;
+  document.body.classList.toggle('ge-on', v);
+  $$('[data-gesw]').forEach(el => { el.checked = v; el.setAttribute('aria-checked', String(v)); });
+  toast(v ? 'Mode gastro-entérite activé' : 'Mode gastro-entérite désactivé');
+  if (v) say('Mode gastro-entérite activé. On y va doucement : hydratation d\'abord, alimentation fade ensuite, par petites quantités.', 'care', 9000);
+  saveState();
+}
+$$('[data-gesw]').forEach(el => el.addEventListener('change', () => setGe(el.checked)));
+
+/* Recettes surfaçables depuis la recherche générale, sans champ `ph` pour ne pas
+   interférer avec le score du mode gastroparésie (gpRecipeLevel traite tout r.ph comme un signal GP) */
+const GE_AS_RECIPES = GE_RECIPES.map(r => ({
+  key: ['gastro', 'gastroenterite', 'diarrhee', 'vomissement', 'reprise', ...normalize(r.t).split(' ')],
+  title: r.t, time: r.min, portions: 2, carbs: r.c, ig: r.ig,
+  tag: `Phase ${r.ph} — gastro-entérite`, note: r.n,
+  ing: r.i.map(x => { const m = x.match(/^(.*?)\s+([\d,.]+\s*\S*|\S+)$/); return m ? [m[1], m[2]] : [x, '']; }),
+  steps: r.s.map(x => [x, Math.max(2, Math.round(r.min / r.s.length))])
+}));
+RECIPES.push(...GE_AS_RECIPES);
+
+renderGE();
+
+/* ==========================================================================
    18. [A] SCAN CODE-BARRES + CACHE OPEN FOOD FACTS
    ========================================================================== */
 const OFFCACHE = new Map();          // code-barres ou requête -> produit
@@ -2305,6 +2419,7 @@ function saveState() {
     favorites: FAVORITES,
     gp: state.gp,
     ramadan: state.ramadan,
+    ge: state.ge,
     past: PAST.map(p => ({ d: p.d.toISOString(), carbs: p.carbs, ig: p.ig, meals: p.meals, byMoment: p.byMoment })),
     gpLog: state.gpLog.map(l => ({ t: l.t.toISOString(), f: l.f, meal: l.meal }))
   }));
@@ -2333,6 +2448,7 @@ function loadState() {
     }
     if (o.gp) setTimeout(() => setGp(true), 0);
     if (o.ramadan) setTimeout(() => setRamadan(true), 0);
+    if (o.ge) setTimeout(() => setGe(true), 0);
     return true;
   } catch (_) { return false; }
 }
@@ -2869,6 +2985,8 @@ $('#goGastro').addEventListener('click', () => go('gastro'));
 $('#goGastro2').addEventListener('click', () => go('gastro'));
 $('#goRamadan').addEventListener('click', () => go('ramadan'));
 $('#goRamadan2').addEventListener('click', () => go('ramadan'));
+$('#goGE').addEventListener('click', () => go('ge'));
+$('#goGE2').addEventListener('click', () => go('ge'));
 $('#btnScan2').addEventListener('click', openScan);
 $('#todayLabel').textContent = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
 seedPast();
