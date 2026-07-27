@@ -816,11 +816,17 @@ input[type=range]::-moz-range-thumb{
 .rep-q{padding-left:20px;font-size:14px;line-height:1.6}
 .rep-q li{margin-bottom:6px}
 
+/* --- Export hospitalisation --- */
+.hosp-text{
+  white-space:pre-wrap;word-break:break-word;font-family:var(--body);font-size:13.5px;line-height:1.6;
+  background:var(--white);border-radius:var(--r-md);padding:16px;box-shadow:var(--sh-press);
+}
+
 @media print{
   body *{visibility:hidden}
-  #m-report, #m-report *{visibility:visible}
-  #m-report{position:absolute;inset:0;background:#fff;display:block}
-  #m-report .sheet{box-shadow:none;border-radius:0;max-height:none;max-width:none;margin:0;padding:0;animation:none}
+  .veil.on, .veil.on *{visibility:visible}
+  .veil.on{position:absolute;inset:0;background:#fff;display:block}
+  .veil.on .sheet{box-shadow:none;border-radius:0;max-height:none;max-width:none;margin:0;padding:0;animation:none}
   .no-print{display:none !important}
 }
 </style>
@@ -1140,6 +1146,11 @@ input[type=range]::-moz-range-thumb{
           <h4>Compte-rendu consultation</h4>
           <p>4 semaines de glucides, IG, tolérance et 5 questions à poser</p>
         </button>
+        <button class="tool" id="btnHosp">
+          <span class="tool-ico bg-terra">🏥</span>
+          <h4>Export hospitalisation</h4>
+          <p>Résumé rapide à partager avec l'équipe soignante</p>
+        </button>
         <button class="tool" id="btnScan">
           <span class="tool-ico bg-sage">📷</span>
           <h4>Scanner un code-barres</h4>
@@ -1401,6 +1412,19 @@ input[type=range]::-moz-range-thumb{
       <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
     </div>
     <div id="reportBody"></div>
+  </div>
+</div>
+
+<!-- ============ MODALE : EXPORT HOSPITALISATION ============ -->
+<div class="veil" id="m-hosp" role="dialog" aria-modal="true" aria-labelledby="hospTitle">
+  <div class="sheet" id="hospSheet">
+    <div class="grab no-print"></div>
+    <div class="sheet-head no-print">
+      <div style="flex:1"><h2 id="hospTitle">Export hospitalisation</h2>
+        <p>Un résumé rapide, prêt à partager ou imprimer.</p></div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="hospBody"></div>
   </div>
 </div>
 

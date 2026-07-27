@@ -2688,6 +2688,67 @@ async function generateRetro(force) {
 }
 
 /* ==========================================================================
+   24. MODE HOSPITALISATION — export rapide pour l'équipe soignante
+   ========================================================================== */
+function buildHospitalExport() {
+  const last = [...state.journal].sort((a, x) => x.time - a.time)[0];
+  const today = { d: new Date(), carbs: totalCarbs(), ig: avgIg() || 0, meals: state.journal.length };
+  const recentDays = PAST.slice(-2).concat([today]);
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 3);
+  const gpRecent = state.gpLog.filter(l => l.t >= cutoff);
+  return { last, recentDays, gpRecent, generatedAt: new Date() };
+}
+
+function hospitalExportText(d) {
+  const lines = ['GlycIA — résumé pour l\'équipe soignante', `Généré le ${d.generatedAt.toLocaleString('fr-FR')}`, ''];
+  const p = state.profile;
+  if (p && (p.type || p.treatment || p.gp)) {
+    lines.push(`Profil : ${[p.type ? `diabète type ${p.type}` : null, p.treatment ? TREAT_LABEL[p.treatment] : null, p.gp ? 'gastroparésie' : null].filter(Boolean).join(', ')}`);
+  }
+  lines.push(`Repère indicatif quotidien : ${REPERE} g de glucides`, '');
+  lines.push(d.last
+    ? `Dernier repas noté : ${hhmm(d.last.time)} — ${d.last.name} (${d.last.carbs} g, IG ${d.last.ig})`
+    : 'Aucun repas noté aujourd\'hui.');
+  lines.push('', 'Derniers jours :');
+  d.recentDays.slice().reverse().forEach(x => {
+    lines.push(`- ${x.d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'short' })} : ${x.carbs} g de glucides, IG moyen ${x.ig || '—'}, ${x.meals} repas`);
+  });
+  if (d.gpRecent.length) {
+    lines.push('', 'Tolérance digestive récente :');
+    d.gpRecent.forEach(l => lines.push(`- ${l.t.toLocaleString('fr-FR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })} : ${l.f[1]} (${l.meal})`));
+  }
+  lines.push('', 'Ce document est une estimation issue d\'un journal alimentaire personnel, pas un dispositif médical. Aucune dose d\'insuline n\'y figure.');
+  return lines.join('\n');
+}
+
+function renderHospitalExport() {
+  const d = buildHospitalExport();
+  const text = hospitalExportText(d);
+  $('#hospBody').innerHTML = `
+    <pre class="hosp-text">${esc(text)}</pre>
+    <div class="sheet-foot no-print">
+      <button class="btn btn-ghost" data-close>Fermer</button>
+      <button class="btn btn-outline" id="hospCopy">Copier</button>
+      <button class="btn btn-primary btn-block" id="hospShare"><svg><use href="#i-check"/></svg> Partager</button>
+    </div>
+    <p class="foot-note no-print" style="margin-top:10px">Rien n'est envoyé nulle part : ce texte reste sur ton appareil tant que tu ne le partages pas toi-même.</p>`;
+
+  $('#hospCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText(text); toast('Copié dans le presse-papiers'); }
+    catch (_) { toast('Copie impossible ici — sélectionne le texte manuellement'); }
+  };
+  $('#hospShare').onclick = async () => {
+    if (navigator.share) {
+      try { await navigator.share({ title: 'GlycIA — résumé pour l\'équipe soignante', text }); }
+      catch (_) {}
+    } else {
+      window.print();
+    }
+  };
+}
+$('#btnHosp').addEventListener('click', () => { openModal('hosp'); renderHospitalExport(); });
+
+/* ==========================================================================
    13. INIT
    ========================================================================== */
 $('#goGastro').addEventListener('click', () => go('gastro'));
