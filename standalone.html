@@ -705,6 +705,17 @@ body.gp-on .gp-only{display:inline-flex}
 .tk-name{font-size:14.5px;font-weight:500;flex:1}
 .tk-qty{font-size:13px;color:var(--ink-faint);font-variant-numeric:tabular-nums;flex:none}
 
+/* --- Liste de courses --- */
+.shop-item{position:relative;margin-bottom:8px}
+.shop-item .tick{margin-bottom:0;padding-right:38px}
+.shop-del{
+  position:absolute;top:9px;right:9px;width:24px;height:24px;border-radius:50%;
+  display:grid;place-content:center;color:var(--ink-faint);
+}
+.shop-del:hover{background:var(--sand);color:var(--ink)}
+.shop-del svg{width:12px;height:12px}
+.shop-sub{font-size:12px;color:var(--violet-deep);line-height:1.4;padding:0 13px 8px 48px;margin-top:-6px}
+
 .stepline{display:flex;gap:13px;margin-bottom:13px;align-items:flex-start}
 .stepline .n{
   width:29px;height:29px;border-radius:50%;background:var(--sage);color:#fff;flex:none;
@@ -1305,6 +1316,11 @@ input[type=range]::-moz-range-thumb{
           <h4>Scanner un code-barres</h4>
           <p>Le produit exact et ses glucides, depuis le paquet</p>
         </button>
+        <button class="tool" id="btnShopping">
+          <span class="tool-ico bg-sage">🛒</span>
+          <h4>Liste de courses</h4>
+          <p>Depuis tes recettes et ton plateau, groupée par rayon</p>
+        </button>
       </div>
     </div>
 
@@ -1551,6 +1567,19 @@ input[type=range]::-moz-range-thumb{
   </div>
 </div>
 
+<!-- ============ MODALE : LISTE DE COURSES ============ -->
+<div class="veil" id="m-shopping" role="dialog" aria-modal="true" aria-labelledby="shoppingTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1"><h2 id="shoppingTitle">Liste de courses</h2>
+        <p>Groupée par rayon, avec des idées à IG plus bas.</p></div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="shopBody"></div>
+  </div>
+</div>
+
 <!-- ============ MODALE : COMPTE-RENDU CONSULTATION ============ -->
 <div class="veil" id="m-report" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
   <div class="sheet" id="reportSheet">
@@ -1740,7 +1769,8 @@ const state = {
   journal: [],
   analysis: null,
   recipe: null,
-  gpLog: []
+  gpLog: [],
+  shoppingList: []
 };
 
 /* Démo pré-chargée */
@@ -2629,6 +2659,7 @@ function renderRecipe(r, matched) {
           <span class="tk-name">${esc(x[0])}</span>
           <span class="tk-qty">${esc(x[1])}</span>
         </button>`).join('')}
+      <button class="btn btn-outline btn-block" id="btnRecipeToShop" style="margin-top:10px">🛒 Ce qui manque, à la liste de courses</button>
 
       <div class="sect-head" style="margin-top:22px"><h3>On y va</h3></div>
       <div class="card">
@@ -2648,6 +2679,12 @@ function renderRecipe(r, matched) {
     </div>`;
 
   $$('#recipeOut [data-tick]').forEach(b => b.addEventListener('click', () => b.classList.toggle('on')));
+  $('#btnRecipeToShop').addEventListener('click', () => {
+    const missing = [...$$('#recipeOut [data-tick]')].filter(b => !b.classList.contains('on'))
+      .map(b => +b.dataset.tick).map(i => r.ing[i]);
+    if (!missing.length) { toast('Tout est déjà coché comme disponible'); return; }
+    addToShoppingList(missing, r.title);
+  });
   $('#btnEat').addEventListener('click', () => {
     addMeal({ icon:'🍽️', name: r.title, carbs: r.carbs, ig: r.ig, src:'recette' });
     toast('Une part enregistrée. Bon appétit !');
@@ -3206,6 +3243,7 @@ function renderTray() {
       <button class="btn btn-ghost" id="trayFav">⭐ En faire un favori</button>
       <button class="btn btn-primary" id="trayAdd"><svg><use href="#i-check"/></svg> Au journal</button>
     </div>
+    <button class="btn btn-outline btn-block" id="trayToShop" style="margin-top:8px">🛒 Ajouter à la liste de courses</button>
     <button class="btn btn-outline btn-block" id="trayClear" style="margin-top:8px">Vider le plateau</button>`;
 
   $$('#trayBody [data-tq]').forEach(b => b.onclick = () => {
@@ -3228,6 +3266,10 @@ function renderTray() {
     toast('Enregistré dans tes favoris');
   };
   $('#trayClear').onclick = () => { tray.length = 0; closeModal($('#m-tray')); renderFoods(); };
+  $('#trayToShop').onclick = () => {
+    const items = tray.map(it => { const f = findFood(it.n); return f ? [f.n, `${Math.round(f.pw * it.mult)} g`] : null; }).filter(Boolean);
+    addToShoppingList(items, trayName());
+  };
 }
 
 function trayName() {
@@ -3752,6 +3794,98 @@ RECIPES.push(...GE_AS_RECIPES);
 renderGE();
 
 /* ==========================================================================
+   27. LISTE DE COURSES — regroupée par rayon, substitutions IG au moment d'acheter
+   ========================================================================== */
+const AISLES = [
+  ['Fruits & légumes', '🥦', /pomme|poire|banane|orange|clementine|mandarine|fraise|framboise|raisin|peche|abricot|datte|citron|pasteque|melon|ananas|mangue|kiwi|fruit|carotte|courgette|poivron|tomate|oignon|ail\b|poireau|celeri|epinard|salade|laitue|concombre|brocoli|chou|champignon|pomme de terre|patate|avocat|haricot vert|petit pois|persil|coriandre|menthe|basilic|legume/],
+  ['Viandes, poissons & œufs', '🍗', /poulet|boeuf|porc|dinde|agneau|viande|jambon|lardon|saucisse|charcuterie|poisson|cabillaud|saumon|thon|crevette|oeuf|œuf/],
+  ['Crémerie & produits laitiers', '🧀', /lait\b|yaourt|yogourt|fromage|creme|beurre|from(age)? blanc/],
+  ['Féculents & épicerie', '🌾', /riz\b|pate|pâte|semoule|boulgour|quinoa|farine|pain|biscotte|cereale|flocon|avoine|lentille|pois chiche|haricot (blanc|rouge)|legumineuse|sucre|miel|conserve|bouillon|chapelure/],
+  ['Boissons', '🥤', /^eau\b| eau |jus\b|soda|the\b|thé|tisane|cafe|café|boisson/],
+  ['Épices, sauces & condiments', '🧂', /\bsel\b|poivre|epice|cannelle|cumin|paprika|huile|vinaigre|moutarde|sauce|herbe/],
+  ['Surgelés', '❄️', /surgele|glace\b/]
+];
+function guessAisle(name) {
+  const n = normalize(name);
+  for (const [label, icon, re] of AISLES) if (re.test(n)) return [label, icon];
+  return ['Autres', '🛒'];
+}
+
+/* Substitutions à IG plus bas — composition des aliments uniquement, jamais de conseil médical */
+const SUBSTITUTIONS = [
+  [/riz blanc/, 'riz complet ou basmati', 'IG plus bas, mêmes usages en cuisine'],
+  [/pain (blanc|de mie)(?! complet)/, 'pain complet ou aux céréales', 'Plus de fibres, IG plus bas'],
+  [/pommes? de terre|puree/, 'patate douce ou céleri-rave', 'IG plus bas, texture proche en purée'],
+  [/pates? blanches?|pâtes? blanches?/, 'pâtes complètes', 'IG plus bas, cuisson identique'],
+  [/semoule( fine)?/, 'semoule complète ou boulgour', 'IG plus bas'],
+  [/biscottes?( blanches?)?/, 'biscottes complètes', 'Plus de fibres'],
+  [/jus de fruit/, 'un fruit entier', 'Les fibres du fruit ralentissent la montée, pas le jus'],
+  [/cereales? sucrees?|muesli sucre/, 'flocons d\'avoine nature', 'Beaucoup moins de sucre ajouté'],
+  [/sucre (blanc|en poudre)/, 'un fruit mûr écrasé', 'Sucrant plus progressif, avec des fibres en plus']
+];
+function findSubstitution(name) {
+  const n = normalize(name);
+  for (const [re, alt, note] of SUBSTITUTIONS) if (re.test(n)) return { alt, note };
+  return null;
+}
+
+function addToShoppingList(items, source) {
+  items.forEach(([name, qty]) => {
+    const key = normalize(name);
+    const existing = state.shoppingList.find(it => normalize(it.name) === key);
+    if (existing) {
+      if (qty && existing.qty !== qty && !existing.qty.includes(qty)) existing.qty = existing.qty ? `${existing.qty} + ${qty}` : qty;
+    } else {
+      state.shoppingList.push({ name, qty: qty || '', source, bought: false });
+    }
+  });
+  saveState();
+  toast('Ajouté à la liste de courses');
+}
+
+function renderShoppingList() {
+  if (!state.shoppingList.length) {
+    $('#shopBody').innerHTML = `<div class="empty"><strong>Liste vide</strong>Ajoute des ingrédients depuis une recette ou ton plateau.</div>`;
+    return;
+  }
+  const groups = {};
+  state.shoppingList.forEach((it, i) => {
+    const [label, icon] = guessAisle(it.name);
+    (groups[label] = groups[label] || { icon, items: [] }).items.push({ ...it, i });
+  });
+  const order = AISLES.map(a => a[0]).concat('Autres');
+  const html = order.filter(l => groups[l]).map(label => {
+    const g = groups[label];
+    return `<div class="gp-cat">${g.icon} ${esc(label)}</div>` + g.items.map(it => {
+      const sub = it.bought ? null : findSubstitution(it.name);
+      return `
+      <div class="shop-item">
+        <button class="tick ${it.bought ? 'on' : ''}" data-shopcheck="${it.i}">
+          <span class="box"><svg><use href="#i-check"/></svg></span>
+          <span class="tk-name">${esc(it.name)}</span>
+          <span class="tk-qty">${esc(it.qty)}</span>
+        </button>
+        <button class="shop-del" data-shopdel="${it.i}" aria-label="Retirer ${esc(it.name)}"><svg><use href="#i-x"/></svg></button>
+        ${sub ? `<p class="shop-sub">💡 Plutôt : <b>${esc(sub.alt)}</b> — ${esc(sub.note)}</p>` : ''}
+      </div>`;
+    }).join('');
+  }).join('');
+  $('#shopBody').innerHTML = html + `
+    <button class="btn btn-outline btn-block" id="shopClear" style="margin-top:14px">Vider la liste</button>`;
+  $$('#shopBody [data-shopcheck]').forEach(b => b.onclick = () => {
+    const it = state.shoppingList[+b.dataset.shopcheck];
+    it.bought = !it.bought;
+    saveState(); renderShoppingList();
+  });
+  $$('#shopBody [data-shopdel]').forEach(b => b.onclick = () => {
+    state.shoppingList.splice(+b.dataset.shopdel, 1);
+    saveState(); renderShoppingList();
+  });
+  $('#shopClear').onclick = () => { state.shoppingList = []; saveState(); renderShoppingList(); };
+}
+$('#btnShopping').addEventListener('click', () => { openModal('shopping'); renderShoppingList(); });
+
+/* ==========================================================================
    18. [A] SCAN CODE-BARRES + CACHE OPEN FOOD FACTS
    ========================================================================== */
 const OFFCACHE = new Map();          // code-barres ou requête -> produit
@@ -4038,7 +4172,8 @@ function saveState() {
     ramadan: state.ramadan,
     ge: state.ge,
     past: PAST.map(p => ({ d: p.d.toISOString(), carbs: p.carbs, ig: p.ig, meals: p.meals, byMoment: p.byMoment })),
-    gpLog: state.gpLog.map(l => ({ t: l.t.toISOString(), f: l.f, meal: l.meal }))
+    gpLog: state.gpLog.map(l => ({ t: l.t.toISOString(), f: l.f, meal: l.meal })),
+    shoppingList: state.shoppingList
   }));
 }
 
@@ -4050,6 +4185,7 @@ function loadState() {
     if (o.favorites && o.favorites.length) { FAVORITES.length = 0; FAVORITES.push(...o.favorites); }
     if (o.past && o.past.length) { PAST.length = 0; PAST.push(...o.past.map(p => ({ ...p, d: new Date(p.d) }))); }
     if (o.gpLog && o.gpLog.length) { state.gpLog.length = 0; state.gpLog.push(...o.gpLog.map(l => ({ ...l, t: new Date(l.t) }))); }
+    if (o.shoppingList && o.shoppingList.length) { state.shoppingList.length = 0; state.shoppingList.push(...o.shoppingList); }
 
     if (o.day === dayKey(new Date())) {
       state.journal = (o.journal || []).map(m => ({ ...m, time: new Date(m.time) }));
