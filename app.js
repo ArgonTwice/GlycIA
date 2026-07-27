@@ -290,6 +290,7 @@ function openModal(id) {
 function closeModal(m) {
   if (m.id === 'm-shoot') stopCam();
   if (m.id === 'm-scan' && typeof stopBd === 'function') stopBd();
+  if (m.id === 'm-sos' && typeof exitHypo === 'function') exitHypo();
   m.classList.remove('on');
   document.body.style.overflow = '';
   if (lastFocus) lastFocus.focus();
@@ -337,13 +338,18 @@ function timerBtn(run) {
 function tick() {
   tLeft--;
   paintTimer();
-  if (tLeft === 300) $('#timerMsg').textContent = '5 minutes passées. Reste assis, ça remonte.';
+  if (tLeft === 600 && hypoMode) speakFr('Encore dix minutes.');
+  if (tLeft === 300) {
+    $('#timerMsg').textContent = '5 minutes passées. Reste assis, ça remonte.';
+    if (hypoMode) speakFr('Encore cinq minutes.');
+  }
   if (tLeft <= 0) {
     stopTimer();
     tLeft = 0; paintTimer();
     $('#timerMsg').innerHTML = '15 minutes écoulées — <b>recontrôle ta glycémie maintenant.</b> Toujours sous 0,70 g/L ? Reprends 15 g.';
     $('#timerMsg').classList.add('done');
     chime();
+    if (hypoMode) speakFr('Quinze minutes écoulées. Recontrôle ta glycémie maintenant.');
   }
 }
 function stopTimer() { clearInterval(tId); tId = null; tRunning = false; timerBtn(false); }
@@ -379,6 +385,52 @@ $('#btnSos').addEventListener('click', () => {
   say('Je reste avec toi. 15 g de sucre rapide, puis 15 minutes de pause.', 'care', 12000);
 });
 paintTimer();
+
+/* ---------- Mode hypo : gros caractères, contraste renforcé, sans distraction ---------- */
+let hypoMode = false, hypoHoldId = null;
+const HYPO_HOLD_MS = 2000;
+
+function speakFr(text) {
+  try {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'fr-FR';
+    speechSynthesis.speak(u);
+  } catch (_) {}
+}
+function paintHypoBtn() {
+  const b = $('#hypoToggle');
+  b.innerHTML = hypoMode
+    ? '<span class="fill"></span><span>Maintenir 2 s pour quitter</span>'
+    : '<svg><use href="#i-eye"/></svg> Mode hypo — gros caractères, sans distraction';
+}
+function enterHypo() {
+  if (hypoMode) return;
+  hypoMode = true;
+  document.body.classList.add('hypo');
+  paintHypoBtn();
+  speakFr('Prends 15 grammes de sucre rapide, puis attends 15 minutes avant de recontrôler ta glycémie.');
+}
+function exitHypo() {
+  if (!hypoMode) return;
+  hypoMode = false;
+  document.body.classList.remove('hypo');
+  paintHypoBtn();
+  try { speechSynthesis.cancel(); } catch (_) {}
+}
+$('#hypoToggle').addEventListener('click', () => { if (!hypoMode) enterHypo(); });
+$('#hypoToggle').addEventListener('pointerdown', () => {
+  if (!hypoMode) return;
+  const fill = $('#hypoToggle .fill');
+  if (fill) { fill.style.transition = `width ${HYPO_HOLD_MS}ms linear`; fill.style.width = '100%'; }
+  hypoHoldId = setTimeout(exitHypo, HYPO_HOLD_MS);
+});
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('#hypoToggle').addEventListener(ev, () => {
+  clearTimeout(hypoHoldId);
+  const fill = $('#hypoToggle .fill');
+  if (fill) { fill.style.transition = 'none'; fill.style.width = '0'; }
+}));
 
 /* ==========================================================================
    9. ANALYSE D'ASSIETTE
