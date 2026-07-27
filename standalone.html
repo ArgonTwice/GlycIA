@@ -3640,12 +3640,32 @@ function renderSettings() {
       </div>
     </div>
     <div class="card" style="margin-top:12px">
+      <div class="sect-head"><h3 style="font-size:17px">Rappels de repas</h3></div>
+      <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45;margin-bottom:12px">
+        Une notification aux heures de repas, avec tes favoris en actions rapides. Rien ne part sur un serveur.
+      </p>
+      <label class="sw">
+        <span class="tool-ico bg-peach" style="width:42px;height:42px;border-radius:13px;display:grid;place-content:center">🔔</span>
+        <span class="swt"><b>Activer les rappels</b><span>Petit-déj, déjeuner, goûter, dîner</span></span>
+        <input type="checkbox" id="remindSw" role="switch" aria-checked="false">
+      </label>
+    </div>
+    <div class="card" style="margin-top:12px">
       <div class="sect-head"><h3 style="font-size:17px">Tes données</h3></div>
       <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45">
         Journal, favoris et historique sont enregistrés dans ce navigateur uniquement. Rien ne part sur un serveur.
       </p>
       <button class="btn btn-outline btn-block" id="wipe" style="margin-top:12px">Tout effacer</button>
     </div>`;
+
+  const remindSw = $('#remindSw');
+  remindSw.checked = store.get('glycia.reminders') === '1';
+  remindSw.setAttribute('aria-checked', String(remindSw.checked));
+  remindSw.onchange = async () => {
+    const ok = await setReminders(remindSw.checked);
+    if (!ok) remindSw.checked = false;
+    remindSw.setAttribute('aria-checked', String(remindSw.checked));
+  };
 
   $('#keySave').onclick = () => {
     const v = $('#apiKey').value.trim(), u = $('#apiProxy').value.trim();
@@ -3710,6 +3730,98 @@ function loadProfile() {
 }
 
 /* ==========================================================================
+   19. PARTAGE PHOTO & RAPPELS DE REPAS
+   ========================================================================== */
+
+/* ---------- Web Share Target : partager une photo depuis la galerie ouvre l'analyse ---------- */
+async function checkSharedPhoto() {
+  if (new URLSearchParams(location.search).get('partage') !== '1') return;
+  history.replaceState(null, '', location.pathname);
+  try {
+    const c = await caches.open('glycia-v1');
+    const res = await c.match('./shared-photo');
+    if (!res) return;
+    const blob = await res.blob();
+    await c.delete('./shared-photo');
+    const dataURL = await new Promise((res2, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res2(fr.result);
+      fr.onerror = rej;
+      fr.readAsDataURL(blob);
+    });
+    state.analysis = null; mergeNext = false;
+    openModal('shoot');
+    runAnalysis(dataURL, null, false);
+  } catch (_) {}
+}
+
+/* ---------- Rappels de repas : notification + favoris en actions rapides ---------- */
+const MEAL_SLOTS = [
+  { h: 8,  m: 0,  label: 'petit-déjeuner' },
+  { h: 12, m: 30, label: 'déjeuner' },
+  { h: 16, m: 30, label: 'goûter' },
+  { h: 19, m: 30, label: 'dîner' }
+];
+let reminderTimer = null;
+
+function nextMealSlot() {
+  const now = new Date();
+  for (const s of MEAL_SLOTS) {
+    const t = new Date(now); t.setHours(s.h, s.m, 0, 0);
+    if (t > now) return { time: t, slot: s };
+  }
+  const t = new Date(now); t.setDate(t.getDate() + 1); t.setHours(MEAL_SLOTS[0].h, MEAL_SLOTS[0].m, 0, 0);
+  return { time: t, slot: MEAL_SLOTS[0] };
+}
+async function fireReminder(slot) {
+  const opts = {
+    body: `C'est l'heure du ${slot.label}. Ajoute un favori en un tap.`,
+    icon: './icon.svg',
+    tag: 'glycia-repas',
+    actions: FAVORITES.slice(0, 2).map((f, i) => ({ action: String(i), title: `${f.icon} ${f.name}`.slice(0, 30) }))
+  };
+  const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+  if (reg) reg.showNotification('GlycIA', opts); else new Notification('GlycIA', opts);
+}
+function scheduleReminder() {
+  clearTimeout(reminderTimer);
+  if (store.get('glycia.reminders') !== '1' || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const { time, slot } = nextMealSlot();
+  reminderTimer = setTimeout(() => { fireReminder(slot); scheduleReminder(); }, time - Date.now());
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleReminder(); });
+
+async function setReminders(on) {
+  if (on) {
+    if (!('Notification' in window)) { toast('Notifications non disponibles sur ce navigateur'); return false; }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast('Notifications bloquées par le navigateur'); return false; }
+  }
+  store.set('glycia.reminders', on ? '1' : '0');
+  if (on) scheduleReminder(); else clearTimeout(reminderTimer);
+  return true;
+}
+
+/* ---------- Ajout rapide depuis une action de notification ---------- */
+function quickAddFavori(i) {
+  const f = FAVORITES[i];
+  if (!f) return;
+  addMeal({ icon: f.icon, name: f.name, carbs: f.carbs, ig: f.ig, src: 'favori' });
+  toast(`${f.name} ajouté depuis le rappel`);
+}
+function checkQuickAddParam() {
+  const v = new URLSearchParams(location.search).get('addfav');
+  if (v === null) return;
+  history.replaceState(null, '', location.pathname);
+  quickAddFavori(+v);
+}
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data && e.data.type === 'glycia-addfav' && e.data.index !== '') quickAddFavori(+e.data.index);
+  });
+}
+
+/* ==========================================================================
    13. INIT
    ========================================================================== */
 $('#goGastro').addEventListener('click', () => go('gastro'));
@@ -3723,7 +3835,11 @@ renderFavorites();
 setMascot('hello');
 renderDay();
 findRecipe();
-if (!store.get('glycia.onboarded')) openModal('onboard');
+const sharedIncoming = new URLSearchParams(location.search).get('partage') === '1';
+if (!store.get('glycia.onboarded') && !sharedIncoming) openModal('onboard');
+checkQuickAddParam();
+checkSharedPhoto();
+scheduleReminder();
 
 })();
 
