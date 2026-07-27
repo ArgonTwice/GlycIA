@@ -1265,6 +1265,17 @@ const CAT_ICON = {
   'Sport & diététique':'💪','Trouvés en ligne':'🌐','Ajoutés par Claude':'✨'
 };
 
+/* Corrections en boucle courte : ouvre une issue GitHub pré-remplie, une Action ouvre la PR sur db.json */
+function ghIssueUrl(f) {
+  const params = new URLSearchParams({
+    template: 'valeur-incorrecte.yml',
+    title: `Valeur incorrecte : ${f.n}`,
+    aliment: f.n,
+    actuel: `${f.c} g de glucides / 100 g (IG ${f.ig || '—'}, ${f.kcal} kcal/100 g)`
+  });
+  return `https://github.com/ArgonTwice/GlycIA/issues/new?${params.toString()}`;
+}
+
 const ALL = [];
 const seenF = new Set();
 Object.entries(FOODDB).forEach(([cat, list]) => list.forEach(a => {
@@ -1467,6 +1478,7 @@ function renderFoods(onlineMsg) {
         </div>
         <button class="btn btn-primary btn-block" data-addfood="${esc(f.n)}" style="margin-top:8px">
           <svg><use href="#i-plus"/></svg> Ajouter au journal</button>
+        ${f.off ? '' : `<a class="report-link" href="${ghIssueUrl(f)}" target="_blank" rel="noopener">Cette valeur est fausse ?</a>`}
       </div>
     </div>`;
   }).join('')

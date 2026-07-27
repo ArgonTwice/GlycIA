@@ -1,0 +1,116 @@
+name: Correction alimentaire
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  apply-correction:
+    if: contains(github.event.issue.labels.*.name, 'données')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extrait et applique la correction
+        id: apply
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = context.payload.issue.body || '';
+
+            // Les formulaires d'issue GitHub rendent chaque champ en "### Label\n\nValeur"
+            function field(label) {
+              const re = new RegExp('### ' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\n\\n([\\s\\S]*?)(\\n### |$)');
+              const m = body.match(re);
+              return m ? m[1].trim() : '';
+            }
+
+            async function needsHuman(reason) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body: `Correction automatique impossible : ${reason}\n\nUne intervention manuelle est nécessaire pour cette issue.`
+              });
+              core.setOutput('applied', 'false');
+            }
+
+            const aliment = field('Aliment concerné');
+            const actuel = field('Valeur affichée');
+            const correct = field('Valeur correcte');
+
+            if (!aliment || !correct) {
+              await needsHuman('un ou plusieurs champs du formulaire n\'ont pas pu être lus.');
+              return;
+            }
+
+            // Détecte quelle colonne corriger : glucides (par défaut), IG, ou kcal
+            const hint = (correct + ' ' + actuel).toLowerCase();
+            let field_idx = 1, field_label = 'glucides/100g', range = [0, 100];
+            if (/\big\b|glyc[ée]mique/.test(hint)) { field_idx = 2; field_label = 'IG'; range = [0, 110]; }
+            else if (/kcal|calorie/.test(hint)) { field_idx = 3; field_label = 'kcal/100g'; range = [0, 900]; }
+
+            const numMatch = correct.match(/(\d+(?:[.,]\d+)?)/);
+            if (!numMatch) {
+              await needsHuman(`aucun nombre exploitable trouvé dans « ${correct} ».`);
+              return;
+            }
+            const value = parseFloat(numMatch[1].replace(',', '.'));
+            if (!(value >= range[0] && value <= range[1])) {
+              await needsHuman(`la valeur extraite (${value}) est hors de la plage attendue pour ${field_label} (${range[0]}-${range[1]}).`);
+              return;
+            }
+
+            const db = JSON.parse(fs.readFileSync('db.json', 'utf8'));
+            const target = aliment.trim().toLowerCase();
+            let found = null;
+            for (const key of ['FOODDB', 'FOODDB2']) {
+              if (!db[key]) continue;
+              for (const [cat, list] of Object.entries(db[key])) {
+                const idx = list.findIndex(a => String(a[0]).trim().toLowerCase() === target);
+                if (idx >= 0) { found = { list, idx }; break; }
+              }
+              if (found) break;
+            }
+            if (!found) {
+              await needsHuman(`aliment « ${aliment} » introuvable tel quel dans la base (le nom doit correspondre exactement).`);
+              return;
+            }
+
+            const before = found.list[found.idx][field_idx];
+            found.list[found.idx][field_idx] = value;
+            fs.writeFileSync('db.json', JSON.stringify(db));
+
+            core.setOutput('applied', 'true');
+            core.setOutput('aliment', aliment);
+            core.setOutput('field_label', field_label);
+            core.setOutput('before', before);
+            core.setOutput('after', value);
+
+      - name: Régénère standalone.html
+        if: steps.apply.outputs.applied == 'true'
+        run: node build.mjs
+
+      - name: Ouvre la pull request
+        if: steps.apply.outputs.applied == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "db.json : corrige ${{ steps.apply.outputs.field_label }} de ${{ steps.apply.outputs.aliment }}"
+          title: "Correction : ${{ steps.apply.outputs.aliment }} (${{ steps.apply.outputs.field_label }})"
+          body: |
+            Corrige automatiquement la valeur **${{ steps.apply.outputs.field_label }}** pour
+            **${{ steps.apply.outputs.aliment }}**, à partir de l'issue #${{ github.event.issue.number }}.
+
+            Avant : `${{ steps.apply.outputs.before }}`
+            Après : `${{ steps.apply.outputs.after }}`
+
+            À vérifier avant fusion : la source donnée dans l'issue justifie bien ce changement.
+
+            Closes #${{ github.event.issue.number }}
+          branch: "correction/aliment-${{ github.event.issue.number }}"
+          labels: données
