@@ -7,7 +7,7 @@
 
 /* Données séparées : chargées en parallèle du script, mises en cache par le SW */
 const DB = await (await fetch(new URL('./db.json', import.meta.url))).json();
-const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT, GE_PHASES, GE_TIPS, GE_FOODS, GE_RECIPES, GE_ALERT } = DB;
+const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT, GE_PHASES, GE_TIPS, GE_FOODS, GE_RECIPES, GE_ALERT, SPORT_PHASES, SPORT_TIPS, SPORT_FOODS, SPORT_RECIPES, SPORT_ALERT } = DB;
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -119,6 +119,7 @@ const state = {
   gp: false,
   ramadan: false,
   ge: false,
+  sport: false,
   profile: null,
   journal: [],
   analysis: null,
@@ -591,6 +592,7 @@ function profileContext() {
   if (p && p.gp) bits.push('gastroparésie');
   if (state.ramadan) bits.push('mois de Ramadan (jeûne)');
   if (state.ge) bits.push('épisode de gastro-entérite en cours');
+  if (state.sport) bits.push('mode sport d\'endurance actif');
   return bits.length ? `Profil : ${bits.join(', ')}. ` : '';
 }
 const momentOf = h => h < 11 ? 'matin' : h < 15 ? 'midi' : h < 18 ? 'gouter' : 'soir';
@@ -2161,6 +2163,115 @@ RECIPES.push(...GE_AS_RECIPES);
 renderGE();
 
 /* ==========================================================================
+   29. MODE SPORT D'ENDURANCE — glucides avant / pendant / après l'effort
+   Même structure que les modes gastroparésie / Ramadan / gastro-entérite.
+   ========================================================================== */
+let sportPhase = 1, sportLvl = 0, sportQ = '', sportOpenR = -1;
+const SPORT_LVL = { 1:['ok','Idéal'], 2:['mid','Avec prudence'], 3:['no','Mieux éviter'] };
+
+function renderSport() {
+  $$('[data-sportsw]').forEach(el => { el.checked = state.sport; el.setAttribute('aria-checked', String(state.sport)); });
+
+  $('#sportPhases').innerHTML = SPORT_PHASES.map(p => `
+    <button class="gp-ph ${sportPhase === p.id ? 'on' : ''}" data-sportph="${p.id}">
+      <span class="e">${p.e}</span><b>${esc(p.t)}</b><span class="s">${esc(p.s)}</span>
+    </button>`).join('');
+  $$('#sportPhases [data-sportph]').forEach(b => b.onclick = () => { sportPhase = +b.dataset.sportph; renderSport(); });
+
+  const p = SPORT_PHASES.find(x => x.id === sportPhase);
+  $('#sportPhaseCard').innerHTML = `
+    <p style="font-size:14.5px;line-height:1.5;color:var(--ink)">${esc(p.d)}</p>
+    <div class="gp-ex">${p.ex.map(x => `<span>${esc(x)}</span>`).join('')}</div>
+    <div class="glycia-note" style="margin-top:14px">
+      <div class="ava sm" aria-hidden="true" style="width:34px;height:34px">${mascotSVG('care')}</div>
+      <div><span class="who">GlycIA —</span> ${esc(p.note)}</div>
+    </div>`;
+
+  $('#sportTips').innerHTML = SPORT_TIPS.map(([e, t, d]) => `
+    <div class="gp-tip"><span class="e">${e}</span><div><b>${esc(t)}</b><p>${esc(d)}</p></div></div>`).join('');
+
+  renderSportFoods();
+
+  $('#sportRecipes').innerHTML = SPORT_RECIPES.map((r, i) => `
+    <div class="frow ${sportOpenR === i ? 'open' : ''}">
+      <button class="fhead" data-sportr="${i}">
+        <span class="fe">${SPORT_PHASES.find(x => x.id === r.ph).e}</span>
+        <span class="fn"><b>${esc(r.t)}</b><span>Phase ${r.ph} · ${r.min} min · ${igLabel(r.ig)}</span></span>
+        <span class="fc"><b>${r.c}</b><span>g gluc.</span></span>
+      </button>
+      <div class="fdet">
+        <div class="fgrid">
+          <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig || '—'}</b><span>Indice IG</span></div>
+          <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
+        </div>
+        <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
+        ${r.i.map(x => `<div class="gp-ing">${esc(x)}</div>`).join('')}
+        <div class="eyebrow" style="margin:14px 0 8px">Préparation</div>
+        ${r.s.map((x, k) => `<div class="stepline"><span class="n" style="background:var(--violet)">${k + 1}</span><div class="txt">${esc(x)}</div></div>`).join('')}
+        <div class="glycia-note" style="margin:10px 0 12px">
+          <div class="ava sm" aria-hidden="true" style="width:34px;height:34px">${mascotSVG('happy')}</div>
+          <div><span class="who">GlycIA —</span> ${esc(r.n)}</div>
+        </div>
+        <button class="btn btn-primary btn-block" data-sporteat="${i}">🍽️ Passer à table</button>
+      </div>
+    </div>`).join('');
+  $$('#sportRecipes [data-sportr]').forEach(b => b.onclick = () => { sportOpenR = sportOpenR === +b.dataset.sportr ? -1 : +b.dataset.sportr; renderSport(); });
+  $$('#sportRecipes [data-sporteat]').forEach(b => b.onclick = () => {
+    const r = SPORT_RECIPES[+b.dataset.sporteat];
+    addMeal({ icon:'🏃', name: r.t, carbs: r.c, ig: r.ig, src:'recette' });
+    toast('Ajouté au journal. Bon effort — ou bonne récup !');
+  });
+
+  $('#sportAlert').innerHTML = SPORT_ALERT.map(x => `<li>${esc(x)}</li>`).join('');
+}
+
+function renderSportFoods() {
+  $('#sportLvls').innerHTML = [[0,'Tout'], [1,'✅ Idéal'], [2,'⚠️ Prudence'], [3,'⛔ À éviter']]
+    .map(([v, l]) => `<button class="cat ${sportLvl === v ? 'on' : ''}" data-sportl="${v}">${l}</button>`).join('');
+  $$('#sportLvls [data-sportl]').forEach(b => b.onclick = () => { sportLvl = +b.dataset.sportl; renderSportFoods(); });
+
+  let n = 0;
+  const html = Object.entries(SPORT_FOODS).map(([cat, list]) => {
+    const rows = list.filter(([nm, lv]) =>
+      (!sportLvl || lv === sportLvl) && (!sportQ || normalize(nm + ' ' + cat).includes(sportQ)));
+    if (!rows.length) return '';
+    n += rows.length;
+    return `<div class="gp-cat">${esc(cat)}</div>` + rows.map(([nm, lv, why]) => `
+      <div class="gp-f ${SPORT_LVL[lv][0]}">
+        <span class="gp-dot"></span>
+        <div><b>${esc(nm)}</b><p>${esc(why)}</p></div>
+      </div>`).join('');
+  }).join('');
+  $('#sportFoods').innerHTML = html || `<div class="empty"><strong>Aucun aliment</strong>Change de filtre ou vide la recherche.</div>`;
+  $('#sportCount').textContent = n ? `${n} aliment${n > 1 ? 's' : ''}` : '';
+}
+$('#sportQ').addEventListener('input', e => { sportQ = normalize(e.target.value.trim()); renderSportFoods(); });
+
+function setSport(v) {
+  state.sport = v;
+  document.body.classList.toggle('sport-on', v);
+  $$('[data-sportsw]').forEach(el => { el.checked = v; el.setAttribute('aria-checked', String(v)); });
+  toast(v ? 'Mode sport d\'endurance activé' : 'Mode sport d\'endurance désactivé');
+  if (v) say('Mode sport activé. Glucides avant, pendant et après l\'effort : je m\'adapte au rythme de l\'entraînement.', 'care', 9000);
+  saveState();
+}
+$$('[data-sportsw]').forEach(el => el.addEventListener('change', () => setSport(el.checked)));
+
+/* Recettes surfaçables depuis la recherche générale, sans champ `ph` pour ne pas
+   interférer avec le score du mode gastroparésie (gpRecipeLevel traite tout r.ph comme un signal GP) */
+const SPORT_AS_RECIPES = SPORT_RECIPES.map(r => ({
+  key: ['sport', 'endurance', 'effort', 'course', 'entrainement', 'recuperation', ...normalize(r.t).split(' ')],
+  title: r.t, time: r.min, portions: 2, carbs: r.c, ig: r.ig,
+  tag: `Phase ${r.ph} — sport d'endurance`, note: r.n,
+  ing: r.i.map(x => { const m = x.match(/^(.*?)\s+([\d,.]+\s*\S*|\S+)$/); return m ? [m[1], m[2]] : [x, '']; }),
+  steps: r.s.map(x => [x, Math.max(2, Math.round(r.min / r.s.length))])
+}));
+RECIPES.push(...SPORT_AS_RECIPES);
+
+renderSport();
+
+/* ==========================================================================
    27. LISTE DE COURSES — regroupée par rayon, substitutions IG au moment d'acheter
    ========================================================================== */
 const AISLES = [
@@ -2634,7 +2745,7 @@ function syncFullExport() {
     gpLog: state.gpLog.map(l => ({ t: l.t.toISOString(), f: l.f, meal: l.meal })),
     shoppingList: state.shoppingList,
     profile: state.profile,
-    gp: state.gp, ramadan: state.ramadan, ge: state.ge,
+    gp: state.gp, ramadan: state.ramadan, ge: state.ge, sport: state.sport,
     exportedAt: new Date().toISOString()
   };
 }
@@ -2643,7 +2754,7 @@ function syncCompactExport() {
     kind: 'compact',
     j: state.journal.map(m => [m.time.toISOString(), m.icon, m.name, m.carbs, m.ig, m.src]),
     p: state.profile,
-    m: { gp: state.gp, ramadan: state.ramadan, ge: state.ge },
+    m: { gp: state.gp, ramadan: state.ramadan, ge: state.ge, sport: state.sport },
     exportedAt: new Date().toISOString()
   };
 }
@@ -2661,6 +2772,7 @@ function syncApplyImport(obj) {
       if (obj.m.gp) setGp(true);
       if (obj.m.ramadan) setRamadan(true);
       if (obj.m.ge) setGe(true);
+      if (obj.m.sport) setSport(true);
     }
   } else {
     state.journal = (obj.journal || []).map(m => ({ ...m, time: new Date(m.time) }));
@@ -2672,6 +2784,7 @@ function syncApplyImport(obj) {
     if (obj.gp) setGp(true);
     if (obj.ramadan) setRamadan(true);
     if (obj.ge) setGe(true);
+    if (obj.sport) setSport(true);
   }
   saveState();
   renderDay(); renderFavorites(); renderGpLog();
@@ -3085,6 +3198,7 @@ function saveState() {
     gp: state.gp,
     ramadan: state.ramadan,
     ge: state.ge,
+    sport: state.sport,
     past: PAST.map(p => ({ d: p.d.toISOString(), carbs: p.carbs, ig: p.ig, meals: p.meals, byMoment: p.byMoment })),
     gpLog: state.gpLog.map(l => ({ t: l.t.toISOString(), f: l.f, meal: l.meal })),
     shoppingList: state.shoppingList
@@ -3116,6 +3230,7 @@ function loadState() {
     if (o.gp) setTimeout(() => setGp(true), 0);
     if (o.ramadan) setTimeout(() => setRamadan(true), 0);
     if (o.ge) setTimeout(() => setGe(true), 0);
+    if (o.sport) setTimeout(() => setSport(true), 0);
     return true;
   } catch (_) { return false; }
 }
@@ -3654,6 +3769,8 @@ $('#goRamadan').addEventListener('click', () => go('ramadan'));
 $('#goRamadan2').addEventListener('click', () => go('ramadan'));
 $('#goGE').addEventListener('click', () => go('ge'));
 $('#goGE2').addEventListener('click', () => go('ge'));
+$('#goSport').addEventListener('click', () => go('sport'));
+$('#goSport2').addEventListener('click', () => go('sport'));
 $('#btnScan2').addEventListener('click', openScan);
 $('#todayLabel').textContent = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
 seedPast();

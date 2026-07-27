@@ -978,6 +978,11 @@ input[type=range]::-moz-range-thumb{
           <h4>Gastro-entérite</h4>
           <p>Hydratation d'abord, reprise alimentaire ensuite</p>
         </button>
+        <button class="tool" id="goSport2">
+          <span class="tool-ico bg-violet">🏃</span>
+          <h4>Sport d'endurance</h4>
+          <p>Glucides avant, pendant et après l'effort</p>
+        </button>
         <button class="tool" id="btnScan2">
           <span class="tool-ico bg-sage">📷</span>
           <h4>Code-barres</h4>
@@ -1244,6 +1249,65 @@ input[type=range]::-moz-range-thumb{
     </p>
   </section>
 
+  <!-- ============ VUE : SPORT D'ENDURANCE ============ -->
+  <section class="view" id="v-sport">
+    <div class="gp-hero">
+      <h3>Glucides avant, pendant, après</h3>
+      <p>Un effort d'endurance change toute la gestion de la journée : les besoins ne sont pas
+      les mêmes avant de partir, pendant l'effort, et dans les heures qui suivent l'arrêt.</p>
+      <p style="margin-top:10px"><b style="color:var(--violet-deep)">Ce qu'on peut faire :</b> adapter
+      la composition des repas à chaque moment, et garder un œil sur la glycémie plus souvent qu'un jour normal.</p>
+    </div>
+
+    <label class="sw" style="margin-bottom:14px">
+        <span class="tool-ico bg-violet" style="width:42px;height:42px;border-radius:13px;display:grid;place-content:center">🏃</span>
+        <span class="swt"><b>Mode sport d'endurance</b><span>Repères avant / pendant / après l'effort</span></span>
+        <input type="checkbox" data-sportsw role="switch" aria-checked="false" aria-label="Activer le mode sport d'endurance">
+      </label>
+
+    <div class="sect" style="margin-top:0">
+      <div class="sect-head"><h3>Où tu en es</h3></div>
+      <div class="rail" id="sportPhases"></div>
+      <div class="card" id="sportPhaseCard" style="margin-top:4px"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Les réflexes qui changent tout</h3></div>
+      <div id="sportTips"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Qu'est-ce qui convient ?</h3><span class="link" id="sportCount"></span></div>
+      <div class="searchbox" style="margin-bottom:10px">
+        <svg><use href="#i-search"/></svg>
+        <input id="sportQ" type="search" autocomplete="off" placeholder="Banane, gel, riz…" aria-label="Chercher un aliment">
+      </div>
+      <div class="rail cats" id="sportLvls"></div>
+      <div id="sportFoods"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Recettes avant / pendant / après</h3></div>
+      <div id="sportRecipes"></div>
+    </div>
+
+    <div class="sect">
+      <div class="gp-alert">
+        <h4>Quand il faut s'arrêter</h4>
+        <ul id="sportAlert"></ul>
+        <p style="font-size:13px;color:var(--ink-soft);margin-top:10px;line-height:1.45">
+          En cas de malaise qui ne passe pas : le <b>15</b> (ou le 112).
+        </p>
+      </div>
+    </div>
+
+    <p class="foot-note">
+      Ces repères sont généraux et portent uniquement sur la composition et le moment des repas.
+      <b>Le moment et la dose de ton traitement autour d'un effort long doivent être revus avec
+      ton équipe soignante — jamais ajustés seul.</b>
+    </p>
+  </section>
+
   <!-- ============ VUE : OUTILS ============ -->
   <section class="view" id="v-tools">
     <div class="sect" style="margin-top:6px">
@@ -1261,6 +1325,11 @@ input[type=range]::-moz-range-thumb{
         <span class="tool-ico bg-violet" style="width:42px;height:42px;border-radius:13px;display:grid;place-content:center">🤢</span>
         <span class="swt"><b>Mode gastro-entérite</b><span>Repères d'hydratation et de reprise alimentaire pendant l'épisode</span></span>
         <input type="checkbox" data-gesw role="switch" aria-checked="false" aria-label="Activer le mode gastro-entérite">
+      </label>
+      <label class="sw" style="margin-bottom:14px">
+        <span class="tool-ico bg-violet" style="width:42px;height:42px;border-radius:13px;display:grid;place-content:center">🏃</span>
+        <span class="swt"><b>Mode sport d'endurance</b><span>Repères avant / pendant / après l'effort</span></span>
+        <input type="checkbox" data-sportsw role="switch" aria-checked="false" aria-label="Activer le mode sport d'endurance">
       </label>
       <div class="sect-head"><h3>La boîte à outils</h3></div>
       <div class="tools">
@@ -1298,6 +1367,11 @@ input[type=range]::-moz-range-thumb{
           <span class="tool-ico bg-violet">🤢</span>
           <h4>Gastro-entérite</h4>
           <p>Phases, aliments de reprise, recettes fades</p>
+        </button>
+        <button class="tool" id="goSport">
+          <span class="tool-ico bg-violet">🏃</span>
+          <h4>Sport d'endurance</h4>
+          <p>Phases, aliments par moment, recettes d'effort</p>
         </button>
         <button class="tool" id="btnSet">
           <span class="tool-ico bg-violet">⚙️</span>
