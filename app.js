@@ -2586,6 +2586,108 @@ async function buildAndRenderReport() {
 $('#btnReport').addEventListener('click', () => { openModal('report'); buildAndRenderReport(); });
 
 /* ==========================================================================
+   23. RÉTROSPECTIVE HEBDOMADAIRE — le dimanche, un regard, pas un bilan
+   ========================================================================== */
+function retroWeekKey(d = new Date()) {
+  const x = new Date(d);
+  x.setDate(x.getDate() - x.getDay()); // recule jusqu'au dimanche de la semaine en cours
+  return dayKey(x);
+}
+function retroSummaryText() {
+  const today = { d: new Date(), carbs: totalCarbs(), ig: avgIg() || 0, meals: state.journal.length };
+  const days = PAST.slice(-6).concat([today]);
+  const avg = Math.round(days.reduce((s, x) => s + x.carbs, 0) / days.length);
+  const detail = days.map(x => `${x.d.toLocaleDateString('fr-FR', { weekday:'long' })} : ${x.carbs} g${x.ig ? `, IG ${x.ig}` : ''}${x.meals ? `, ${x.meals} repas` : ''}`).join(' ; ');
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+  const gpCount = state.gpLog.filter(l => l.t >= cutoff).length;
+  return `${profileContext()}Semaine écoulée, moyenne ${avg} g de glucides par jour. Détail jour par jour : ${detail}.`
+    + (gpCount ? ` ${gpCount} épisode(s) de tolérance digestive notés cette semaine.` : '');
+}
+
+const RETRO_RULES = () => `Tu écris la rétrospective hebdomadaire d'un utilisateur de GlycIA, une application de suivi des repas pour personnes diabétiques.
+
+Réponds UNIQUEMENT par un objet JSON valide, sans aucun texte autour et sans balises Markdown.
+Format exact attendu : {"lines":["...","...","...","...","..."]}
+Règles :
+- Exactement 5 lignes courtes, au tutoiement, chaleureuses.
+- Ligne 1 : ce qui a bien marché cette semaine, un fait précis tiré des données.
+- Ligne 2 : un motif récurrent observé (horaire, jour, type de repas...), sans jugement.
+- Ligne 3 : une suggestion douce et concrète pour la semaine prochaine.
+- Lignes 4 et 5 : un mot d'encouragement ou d'observation.
+- C'est un regard, jamais un bilan chiffré : zéro score, zéro comparaison à une norme, zéro culpabilisation.
+- Jamais de dose d'insuline, jamais de consigne médicale.`;
+
+async function askRetro(summaryText) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const r = await fetch(aiURL(), {
+      method: 'POST',
+      headers: aiHeaders(),
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        model: VISION.model,
+        max_tokens: 500,
+        system: [{ type: 'text', text: RETRO_RULES(), cache_control: { type: 'ephemeral' } }],
+        messages: [{ role: 'user', content: [{ type: 'text', text: summaryText }] }]
+      })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = pickJSON(await r.json());
+    const lines = (j.lines || []).filter(l => l).map(l => String(l).slice(0, 200)).slice(0, 5);
+    return lines.length ? lines : null;
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+const FALLBACK_RETRO = [
+  "Tu as noté tes repas toute la semaine — c'est déjà l'essentiel.",
+  "Regarde si un jour ou un moment revient plus chargé que les autres, sans le juger.",
+  "Une petite suggestion : varie les sources de fibres au repas du soir.",
+  "Chaque semaine notée t'apprend un peu plus sur ce qui te convient.",
+  "Prends ce regard comme un point de départ, pas un bilan."
+];
+
+function retroPlaceholder() {
+  $('#retroBody').innerHTML = `
+    <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.5">
+      Le dimanche, GlycIA relit ta semaine et t'écrit un petit regard dessus — pas un bilan chiffré.
+    </p>
+    <button class="btn btn-ghost btn-block" id="retroNow" style="margin-top:12px">Voir quand même</button>`;
+  $('#retroNow').onclick = () => generateRetro(true);
+}
+function retroLines(lines) {
+  $('#retroBody').innerHTML = `
+    <div class="glycia-note" style="align-items:flex-start">
+      <div class="ava sm" aria-hidden="true" style="width:34px;height:34px">${mascotSVG('care')}</div>
+      <div>${lines.map(l => `<p style="margin-bottom:6px">${esc(l)}</p>`).join('')}</div>
+    </div>
+    <button class="btn btn-ghost btn-block" id="retroRefresh" style="margin-top:10px">Actualiser</button>`;
+  $('#retroRefresh').onclick = () => generateRetro(true);
+}
+async function generateRetro(force) {
+  const key = retroWeekKey();
+  if (!force) {
+    const cached = store.get('glycia.retro');
+    if (cached) {
+      try {
+        const o = JSON.parse(cached);
+        if (o.week === key && o.lines && o.lines.length) { retroLines(o.lines); return; }
+      } catch (_) {}
+    }
+    if (new Date().getDay() !== 0) { retroPlaceholder(); return; }
+  }
+  $('#retroBody').innerHTML = `<p class="foot-note" style="margin:0">Ta rétrospective arrive…</p>`;
+  const lines = hasAI() ? await askRetro(retroSummaryText()) : null;
+  const final = lines || FALLBACK_RETRO;
+  store.set('glycia.retro', JSON.stringify({ week: key, lines: final }));
+  retroLines(final);
+}
+
+/* ==========================================================================
    13. INIT
    ========================================================================== */
 $('#goGastro').addEventListener('click', () => go('gastro'));
@@ -2605,5 +2707,6 @@ if (!store.get('glycia.onboarded') && !sharedIncoming) openModal('onboard');
 checkQuickAddParam();
 checkSharedPhoto();
 scheduleReminder();
+generateRetro(false);
 
 })();
