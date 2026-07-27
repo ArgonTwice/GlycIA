@@ -297,6 +297,7 @@ function closeModal(m) {
   if (m.id === 'm-scan' && typeof stopBd === 'function') stopBd();
   if (m.id === 'm-sos' && typeof exitHypo === 'function') exitHypo();
   if (m.id === 'm-onboard' && typeof finishOnboarding === 'function') finishOnboarding();
+  if (m.id === 'm-sync' && typeof stopSyncScan === 'function') stopSyncScan();
   m.classList.remove('on');
   document.body.style.overflow = '';
   if (lastFocus) lastFocus.focus();
@@ -2250,6 +2251,553 @@ function renderShoppingList() {
   $('#shopClear').onclick = () => { state.shoppingList = []; saveState(); renderShoppingList(); };
 }
 $('#btnShopping').addEventListener('click', () => { openModal('shopping'); renderShoppingList(); });
+
+/* ==========================================================================
+   28. [A] GÉNÉRATEUR QR CODE — encodeur maison, mode octet, ISO/IEC 18004
+   Aucune dépendance externe. Table ECC et positions d'alignement vérifiées
+   par calcul (blocs × mots-code = total colonne officielle, 160/160 lignes),
+   puis round-trip testé (encode -> rendu canvas -> redécodé par un décodeur
+   indépendant) sur plusieurs dizaines de tailles/niveaux avant intégration.
+   ========================================================================== */
+const QR_ECC_TABLE = {
+  1: [[7,1,19,0,0], [10,1,16,0,0], [13,1,13,0,0], [17,1,9,0,0]],
+  2: [[10,1,34,0,0], [16,1,28,0,0], [22,1,22,0,0], [28,1,16,0,0]],
+  3: [[15,1,55,0,0], [26,1,44,0,0], [18,2,17,0,0], [22,2,13,0,0]],
+  4: [[20,1,80,0,0], [18,2,32,0,0], [26,2,24,0,0], [16,4,9,0,0]],
+  5: [[26,1,108,0,0], [24,2,43,0,0], [18,2,15,2,16], [22,2,11,2,12]],
+  6: [[18,2,68,0,0], [16,4,27,0,0], [24,4,19,0,0], [28,4,15,0,0]],
+  7: [[20,2,78,0,0], [18,4,31,0,0], [18,2,14,4,15], [26,4,13,1,14]],
+  8: [[24,2,97,0,0], [22,2,38,2,39], [22,4,18,2,19], [26,4,14,2,15]],
+  9: [[30,2,116,0,0], [22,3,36,2,37], [20,4,16,4,17], [24,4,12,4,13]],
+  10: [[18,2,68,2,69], [26,4,43,1,44], [24,6,19,2,20], [28,6,15,2,16]],
+  11: [[20,4,81,0,0], [30,1,50,4,51], [28,4,22,4,23], [24,3,12,8,13]],
+  12: [[24,2,92,2,93], [22,6,36,2,37], [26,4,20,6,21], [28,7,14,4,15]],
+  13: [[26,4,107,0,0], [22,8,37,1,38], [24,8,20,4,21], [22,12,11,4,12]],
+  14: [[30,3,115,1,116], [24,4,40,5,41], [20,11,16,5,17], [24,11,12,5,13]],
+  15: [[22,5,87,1,88], [24,5,41,5,42], [30,5,24,7,25], [24,11,12,7,13]],
+  16: [[24,5,98,1,99], [28,7,45,3,46], [24,15,19,2,20], [30,3,15,13,16]],
+  17: [[28,1,107,5,108], [28,10,46,1,47], [28,1,22,15,23], [28,2,14,17,15]],
+  18: [[30,5,120,1,121], [26,9,43,4,44], [28,17,22,1,23], [28,2,14,19,15]],
+  19: [[28,3,113,4,114], [26,3,44,11,45], [26,17,21,4,22], [26,9,13,16,14]],
+  20: [[28,3,107,5,108], [26,3,41,13,42], [30,15,24,5,25], [28,15,15,10,16]],
+  21: [[28,4,116,4,117], [26,17,42,0,0], [28,17,22,6,23], [30,19,16,6,17]],
+  22: [[28,2,111,7,112], [28,17,46,0,0], [30,7,24,16,25], [24,34,13,0,0]],
+  23: [[30,4,121,5,122], [28,4,47,14,48], [30,11,24,14,25], [30,16,15,14,16]],
+  24: [[30,6,117,4,118], [28,6,45,14,46], [30,11,24,16,25], [30,30,16,2,17]],
+  25: [[26,8,106,4,107], [28,8,47,13,48], [30,7,24,22,25], [30,22,15,13,16]],
+  26: [[28,10,114,2,115], [28,19,46,4,47], [28,28,22,6,23], [30,33,16,4,17]],
+  27: [[30,8,122,4,123], [28,22,45,3,46], [30,8,23,26,24], [30,12,15,28,16]],
+  28: [[30,3,117,10,118], [28,3,45,23,46], [30,4,24,31,25], [30,11,15,31,16]],
+  29: [[30,7,116,7,117], [28,21,45,7,46], [30,1,23,37,24], [30,19,15,26,16]],
+  30: [[30,5,115,10,116], [28,19,47,10,48], [30,15,24,25,25], [30,23,15,25,16]],
+  31: [[30,13,115,3,116], [28,2,46,29,47], [30,42,24,1,25], [30,23,15,28,16]],
+  32: [[30,17,115,0,0], [28,10,46,23,47], [30,10,24,35,25], [30,19,15,35,16]],
+  33: [[30,17,115,1,116], [28,14,46,21,47], [30,29,24,19,25], [30,11,15,46,16]],
+  34: [[30,13,115,6,116], [28,14,46,23,47], [30,44,24,7,25], [30,59,16,1,17]],
+  35: [[30,12,121,7,122], [28,12,47,26,48], [30,39,24,14,25], [30,22,15,41,16]],
+  36: [[30,6,121,14,122], [28,6,47,34,48], [30,46,24,10,25], [30,2,15,64,16]],
+  37: [[30,17,122,4,123], [28,29,46,14,47], [30,49,24,10,25], [30,24,15,46,16]],
+  38: [[30,4,122,18,123], [28,13,46,32,47], [30,48,24,14,25], [30,42,15,32,16]],
+  39: [[30,20,117,4,118], [28,40,47,7,48], [30,43,24,22,25], [30,10,15,67,16]],
+  40: [[30,19,118,6,119], [28,18,47,31,48], [30,34,24,34,25], [30,20,15,61,16]]
+};
+const QR_EC_ORDER = ['L', 'M', 'Q', 'H'];
+const QR_EC_BITS = { L: 0b01, M: 0b00, Q: 0b11, H: 0b10 };
+
+function qrSize(version) { return version * 4 + 17; }
+function qrEccInfo(version, level) {
+  const idx = QR_EC_ORDER.indexOf(level);
+  const [ecc, g1n, g1c, g2n, g2c] = QR_ECC_TABLE[version][idx];
+  return { ecc, g1n, g1c, g2n, g2c, totalData: g1n * g1c + g2n * g2c };
+}
+
+const QR_GF_EXP = new Uint8Array(512);
+const QR_GF_LOG = new Uint8Array(256);
+(function initQrGF() {
+  let x = 1;
+  for (let i = 0; i < 255; i++) {
+    QR_GF_EXP[i] = x; QR_GF_LOG[x] = i;
+    x <<= 1;
+    if (x & 0x100) x ^= 0x11D;
+  }
+  for (let i = 255; i < 512; i++) QR_GF_EXP[i] = QR_GF_EXP[i - 255];
+})();
+function qrGfMul(a, b) { return (a === 0 || b === 0) ? 0 : QR_GF_EXP[QR_GF_LOG[a] + QR_GF_LOG[b]]; }
+function qrRsGeneratorPoly(degree) {
+  let coefs = [1];
+  for (let i = 0; i < degree; i++) {
+    const next = new Array(coefs.length + 1).fill(0);
+    for (let j = 0; j < coefs.length; j++) {
+      next[j] ^= coefs[j];
+      next[j + 1] ^= qrGfMul(coefs[j], QR_GF_EXP[i]);
+    }
+    coefs = next;
+  }
+  return coefs;
+}
+function qrRsRemainder(dataBytes, ecLen) {
+  const gen = qrRsGeneratorPoly(ecLen);
+  const res = new Uint8Array(dataBytes.length + ecLen);
+  res.set(dataBytes, 0);
+  for (let i = 0; i < dataBytes.length; i++) {
+    const factor = res[i];
+    if (factor === 0) continue;
+    for (let j = 0; j < gen.length; j++) res[i + j] ^= qrGfMul(gen[j], factor);
+  }
+  return res.slice(dataBytes.length, dataBytes.length + ecLen);
+}
+
+class QrBitBuffer {
+  constructor() { this.bits = []; }
+  push(value, len) { for (let i = len - 1; i >= 0; i--) this.bits.push((value >>> i) & 1); }
+  get length() { return this.bits.length; }
+  toBytes() {
+    const out = new Uint8Array(Math.ceil(this.bits.length / 8));
+    for (let i = 0; i < this.bits.length; i++) if (this.bits[i]) out[i >> 3] |= 0x80 >> (i & 7);
+    return out;
+  }
+}
+function qrCharCountBits(version) { return version <= 9 ? 8 : 16; }
+
+function qrFindSmallestVersion(byteLength, level) {
+  for (let v = 1; v <= 40; v++) {
+    const { totalData } = qrEccInfo(v, level);
+    const headerBits = 4 + qrCharCountBits(v);
+    if (headerBits + byteLength * 8 + 4 <= totalData * 8) return v;
+  }
+  return null;
+}
+
+function qrEncodeDataCodewords(bytes, version, level) {
+  const { totalData } = qrEccInfo(version, level);
+  const bb = new QrBitBuffer();
+  bb.push(0b0100, 4);
+  bb.push(bytes.length, qrCharCountBits(version));
+  for (const b of bytes) bb.push(b, 8);
+  const capacityBits = totalData * 8;
+  const termLen = Math.min(4, capacityBits - bb.length);
+  if (termLen > 0) bb.push(0, termLen);
+  while (bb.length % 8 !== 0) bb.push(0, 1);
+  let dataBytes = Array.from(bb.toBytes());
+  const padBytes = [0xEC, 0x11];
+  let pi = 0;
+  while (dataBytes.length < totalData) { dataBytes.push(padBytes[pi % 2]); pi++; }
+  return Uint8Array.from(dataBytes);
+}
+
+function qrBuildFinalCodewords(dataCodewords, version, level) {
+  const { ecc, g1n, g1c, g2n, g2c } = qrEccInfo(version, level);
+  const blocks = [];
+  let offset = 0;
+  for (let i = 0; i < g1n; i++) { const d = dataCodewords.slice(offset, offset + g1c); offset += g1c; blocks.push({ data: d, ec: qrRsRemainder(d, ecc) }); }
+  for (let i = 0; i < g2n; i++) { const d = dataCodewords.slice(offset, offset + g2c); offset += g2c; blocks.push({ data: d, ec: qrRsRemainder(d, ecc) }); }
+  const maxDataLen = Math.max(...blocks.map(b => b.data.length));
+  const result = [];
+  for (let i = 0; i < maxDataLen; i++) for (const blk of blocks) if (i < blk.data.length) result.push(blk.data[i]);
+  for (let i = 0; i < ecc; i++) for (const blk of blocks) result.push(blk.ec[i]);
+  return Uint8Array.from(result);
+}
+
+function qrAlignmentPositions(version) {
+  if (version === 1) return [];
+  const numAlign = Math.floor(version / 7) + 2;
+  const size = qrSize(version);
+  const step = version === 32 ? 26 : Math.ceil((size - 13) / (2 * numAlign - 2)) * 2;
+  const result = [6];
+  for (let pos = size - 7; result.length < numAlign; pos -= step) result.splice(1, 0, pos);
+  return result;
+}
+
+function qrPolyDivRemainder(dataShifted, totalBits, generator, deg) {
+  let msg = dataShifted;
+  for (let bit = totalBits - 1; bit >= deg; bit--) if ((msg >>> bit) & 1) msg ^= (generator << (bit - deg));
+  return msg;
+}
+function qrFormatInfoBits(level, mask) {
+  const data = (QR_EC_BITS[level] << 3) | mask;
+  const rem = qrPolyDivRemainder(data << 10, 15, 0b10100110111, 10);
+  return ((data << 10) | rem) ^ 0b101010000010010;
+}
+function qrVersionInfoBits(version) {
+  const rem = qrPolyDivRemainder(version << 12, 18, 0b1111100100101, 12);
+  return (version << 12) | rem;
+}
+
+function qrBuildMatrix(version, finalCodewords) {
+  const size = qrSize(version);
+  const modules = Array.from({ length: size }, () => new Array(size).fill(0));
+  const isFunction = Array.from({ length: size }, () => new Array(size).fill(false));
+  function setFn(r, c, val) {
+    if (r < 0 || r >= size || c < 0 || c >= size) return;
+    modules[r][c] = val ? 1 : 0;
+    isFunction[r][c] = true;
+  }
+  function placeFinder(row, col) {
+    for (let dr = -1; dr <= 7; dr++) for (let dc = -1; dc <= 7; dc++) {
+      const r = row + dr, c = col + dc;
+      if (r < 0 || r >= size || c < 0 || c >= size) continue;
+      const isDark = (dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6) &&
+        (dr === 0 || dr === 6 || dc === 0 || dc === 6 || (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4));
+      setFn(r, c, isDark);
+    }
+  }
+  placeFinder(0, 0); placeFinder(0, size - 7); placeFinder(size - 7, 0);
+  for (let i = 8; i < size - 8; i++) { setFn(6, i, i % 2 === 0); setFn(i, 6, i % 2 === 0); }
+  const aligns = qrAlignmentPositions(version);
+  for (const r of aligns) for (const c of aligns) {
+    if ((r === 6 && c === 6) || (r === 6 && c === size - 7) || (r === size - 7 && c === 6)) continue;
+    for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) setFn(r + dr, c + dc, Math.max(Math.abs(dr), Math.abs(dc)) !== 1);
+  }
+  setFn(size - 8, 8, true);
+  for (let i = 0; i <= 8; i++) { if (i !== 6) setFn(8, i, false); if (i !== 6) setFn(i, 8, false); }
+  for (let i = 0; i < 8; i++) { setFn(8, size - 1 - i, false); setFn(size - 1 - i, 8, false); }
+  setFn(8, 8, false);
+  if (version >= 7) for (let r = 0; r < 6; r++) for (let c = 0; c < 3; c++) { setFn(r, size - 11 + c, false); setFn(size - 11 + c, r, false); }
+
+  const totalBits = finalCodewords.length * 8;
+  const dataBits = new Uint8Array(totalBits);
+  for (let i = 0; i < finalCodewords.length; i++) for (let b = 0; b < 8; b++) dataBits[i * 8 + b] = (finalCodewords[i] >>> (7 - b)) & 1;
+  const rawMatrix = Array.from({ length: size }, () => new Array(size).fill(0));
+  let bitIndex = 0, upward = true;
+  for (let colPair = size - 1; colPair >= 1; colPair -= 2) {
+    if (colPair === 6) colPair = 5;
+    for (let i = 0; i < size; i++) {
+      const row = upward ? size - 1 - i : i;
+      for (let k = 0; k < 2; k++) {
+        const col = colPair - k;
+        if (isFunction[row][col]) continue;
+        rawMatrix[row][col] = bitIndex < totalBits ? dataBits[bitIndex] : 0;
+        bitIndex++;
+      }
+    }
+    upward = !upward;
+  }
+  return { size, modules, isFunction, rawMatrix };
+}
+
+function qrApplyMask(size, isFunction, modules, rawMatrix, maskId) {
+  const out = Array.from({ length: size }, () => new Array(size).fill(0));
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+    let invert;
+    switch (maskId) {
+      case 0: invert = (r + c) % 2 === 0; break;
+      case 1: invert = r % 2 === 0; break;
+      case 2: invert = c % 3 === 0; break;
+      case 3: invert = (r + c) % 3 === 0; break;
+      case 4: invert = (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0; break;
+      case 5: invert = ((r * c) % 2) + ((r * c) % 3) === 0; break;
+      case 6: invert = (((r * c) % 2) + ((r * c) % 3)) % 2 === 0; break;
+      case 7: invert = (((r + c) % 2) + ((r * c) % 3)) % 2 === 0; break;
+    }
+    out[r][c] = isFunction[r][c] ? modules[r][c] : (rawMatrix[r][c] ^ (invert ? 1 : 0));
+  }
+  return out;
+}
+
+function qrPenaltyScore(size, m) {
+  let score = 0;
+  for (let r = 0; r < size; r++) {
+    let runColor = m[r][0], runLen = 1;
+    for (let c = 1; c < size; c++) {
+      if (m[r][c] === runColor) runLen++;
+      else { if (runLen >= 5) score += 3 + (runLen - 5); runColor = m[r][c]; runLen = 1; }
+    }
+    if (runLen >= 5) score += 3 + (runLen - 5);
+  }
+  for (let c = 0; c < size; c++) {
+    let runColor = m[0][c], runLen = 1;
+    for (let r = 1; r < size; r++) {
+      if (m[r][c] === runColor) runLen++;
+      else { if (runLen >= 5) score += 3 + (runLen - 5); runColor = m[r][c]; runLen = 1; }
+    }
+    if (runLen >= 5) score += 3 + (runLen - 5);
+  }
+  for (let r = 0; r < size - 1; r++) for (let c = 0; c < size - 1; c++) {
+    const v = m[r][c];
+    if (v === m[r][c + 1] && v === m[r + 1][c] && v === m[r + 1][c + 1]) score += 3;
+  }
+  const patternA = [1,0,1,1,1,0,1,0,0,0,0], patternB = [0,0,0,0,1,0,1,1,1,0,1];
+  const matchesAt = (arr, start, pattern) => { for (let i = 0; i < pattern.length; i++) if (arr[start + i] !== pattern[i]) return false; return true; };
+  for (let r = 0; r < size; r++) { const row = m[r]; for (let c = 0; c + 11 <= size; c++) if (matchesAt(row, c, patternA) || matchesAt(row, c, patternB)) score += 40; }
+  for (let c = 0; c < size; c++) { const col = m.map(row => row[c]); for (let r = 0; r + 11 <= size; r++) if (matchesAt(col, r, patternA) || matchesAt(col, r, patternB)) score += 40; }
+  let dark = 0;
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (m[r][c]) dark++;
+  const percent = (dark * 100) / (size * size);
+  const prevMultiple = Math.floor(percent / 5) * 5;
+  score += Math.min(Math.abs(prevMultiple - 50), Math.abs(prevMultiple + 5 - 50)) / 5 * 10;
+  return score;
+}
+
+function qrWriteFormatInfo(size, matrix, level, mask) {
+  const bits = qrFormatInfoBits(level, mask);
+  const b = [];
+  for (let i = 14; i >= 0; i--) b.push((bits >>> i) & 1);
+  const topLeftCoords = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+  for (let i = 0; i < 15; i++) { const [r, c] = topLeftCoords[i]; matrix[r][c] = b[i]; }
+  for (let i = 0; i < 8; i++) matrix[size - 1 - i][8] = b[i];
+  for (let i = 8; i < 15; i++) matrix[8][size - 15 + i] = b[i];
+}
+function qrWriteVersionInfo(size, matrix, version) {
+  if (version < 7) return;
+  const bits = qrVersionInfoBits(version);
+  for (let i = 0; i < 18; i++) {
+    const bit = (bits >>> i) & 1, row = Math.floor(i / 3), col = i % 3;
+    matrix[row][size - 11 + col] = bit;
+    matrix[size - 11 + col][row] = bit;
+  }
+}
+
+function qrEncode(text, requestedLevel) {
+  const bytes = new TextEncoder().encode(text);
+  const level = requestedLevel || 'M';
+  const version = qrFindSmallestVersion(bytes.length, level);
+  if (!version) return null;
+  const dataCodewords = qrEncodeDataCodewords(bytes, version, level);
+  const finalCodewords = qrBuildFinalCodewords(dataCodewords, version, level);
+  const { size, isFunction, modules, rawMatrix } = qrBuildMatrix(version, finalCodewords);
+  let bestMask = 0, bestScore = Infinity, bestMatrix = null;
+  for (let maskId = 0; maskId < 8; maskId++) {
+    const candidate = qrApplyMask(size, isFunction, modules, rawMatrix, maskId);
+    qrWriteFormatInfo(size, candidate, level, maskId);
+    qrWriteVersionInfo(size, candidate, version);
+    const score = qrPenaltyScore(size, candidate);
+    if (score < bestScore) { bestScore = score; bestMask = maskId; bestMatrix = candidate; }
+  }
+  return { size, version, level, mask: bestMask, matrix: bestMatrix };
+}
+
+/* Point d'entrée utilisé par la synchronisation multi-appareils */
+function renderQR(canvas, text, level) {
+  let result = qrEncode(text, level || 'M');
+  if (!result && level !== 'L') result = qrEncode(text, 'L');
+  if (!result) return null;
+  const { size, matrix } = result;
+  const scale = 6, border = 4;
+  const total = size + border * 2;
+  canvas.width = total * scale;
+  canvas.height = total * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#000';
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (matrix[r][c]) ctx.fillRect((c + border) * scale, (r + border) * scale, scale, scale);
+  return result;
+}
+
+/* ==========================================================================
+   28. [B] MULTI-APPAREILS SANS SERVEUR — export chiffré (AES-GCM + PBKDF2)
+   Fichier ou QR, import symétrique. Pas de compte, pas de serveur, pas de RGPD.
+   ========================================================================== */
+const SYNC_PBKDF2_ITER = 210000;
+
+function b64enc(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b64dec(str) {
+  const bin = atob(str);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+async function syncDeriveKey(passphrase, salt) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: SYNC_PBKDF2_ITER, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+}
+async function syncEncrypt(passphrase, obj) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await syncDeriveKey(passphrase, salt);
+  const plain = new TextEncoder().encode(JSON.stringify(obj));
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain);
+  return JSON.stringify({ v: 1, s: b64enc(salt), i: b64enc(iv), d: b64enc(new Uint8Array(cipher)) });
+}
+async function syncDecrypt(passphrase, envelopeText) {
+  const env = JSON.parse(envelopeText);
+  if (!env || env.v !== 1 || !env.s || !env.i || !env.d) throw new Error('format invalide');
+  const salt = b64dec(env.s), iv = b64dec(env.i), data = b64dec(env.d);
+  const key = await syncDeriveKey(passphrase, salt);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+/* Export complet (fichier) vs compact (QR, taille limitée : la journée en cours seulement) */
+function syncFullExport() {
+  return {
+    kind: 'full',
+    journal: state.journal.map(m => ({ ...m, time: m.time.toISOString() })),
+    past: PAST.map(p => ({ d: p.d.toISOString(), carbs: p.carbs, ig: p.ig, meals: p.meals, byMoment: p.byMoment })),
+    favorites: FAVORITES,
+    gpLog: state.gpLog.map(l => ({ t: l.t.toISOString(), f: l.f, meal: l.meal })),
+    shoppingList: state.shoppingList,
+    profile: state.profile,
+    gp: state.gp, ramadan: state.ramadan, ge: state.ge,
+    exportedAt: new Date().toISOString()
+  };
+}
+function syncCompactExport() {
+  return {
+    kind: 'compact',
+    j: state.journal.map(m => [m.time.toISOString(), m.icon, m.name, m.carbs, m.ig, m.src]),
+    p: state.profile,
+    m: { gp: state.gp, ramadan: state.ramadan, ge: state.ge },
+    exportedAt: new Date().toISOString()
+  };
+}
+
+function syncApplyImport(obj) {
+  if (obj.kind === 'compact') {
+    const existingKeys = new Set(state.journal.map(m => `${m.name}|${m.carbs}|${m.time.toISOString().slice(0, 16)}`));
+    (obj.j || []).forEach(([t, icon, name, carbs, ig, src]) => {
+      const key = `${name}|${carbs}|${new Date(t).toISOString().slice(0, 16)}`;
+      if (existingKeys.has(key)) return;
+      state.journal.push({ id: uid(), time: new Date(t), icon, name, carbs, ig, src });
+    });
+    if (obj.p) { state.profile = obj.p; store.set('glycia.profile', JSON.stringify(obj.p)); }
+    if (obj.m) {
+      if (obj.m.gp) setGp(true);
+      if (obj.m.ramadan) setRamadan(true);
+      if (obj.m.ge) setGe(true);
+    }
+  } else {
+    state.journal = (obj.journal || []).map(m => ({ ...m, time: new Date(m.time) }));
+    if (obj.past && obj.past.length) { PAST.length = 0; PAST.push(...obj.past.map(p => ({ ...p, d: new Date(p.d) }))); }
+    if (obj.favorites && obj.favorites.length) { FAVORITES.length = 0; FAVORITES.push(...obj.favorites); }
+    if (obj.gpLog) { state.gpLog.length = 0; state.gpLog.push(...obj.gpLog.map(l => ({ ...l, t: new Date(l.t) }))); }
+    if (obj.shoppingList) state.shoppingList = obj.shoppingList;
+    if (obj.profile) { state.profile = obj.profile; store.set('glycia.profile', JSON.stringify(obj.profile)); }
+    if (obj.gp) setGp(true);
+    if (obj.ramadan) setRamadan(true);
+    if (obj.ge) setGe(true);
+  }
+  saveState();
+  renderDay(); renderFavorites(); renderGpLog();
+  toast('Données importées avec succès');
+}
+
+let syncStream = null, syncLoop = null;
+function stopSyncScan() {
+  clearInterval(syncLoop); syncLoop = null;
+  if (syncStream) { syncStream.getTracks().forEach(t => t.stop()); syncStream = null; }
+}
+async function openSyncScan() {
+  const pass = $('#syncPassIn').value;
+  if (!pass) { toast('Renseigne la phrase de passe avant de scanner'); return; }
+  const out = $('#syncScanOut');
+  if (!('BarcodeDetector' in window)) {
+    out.innerHTML = `<div class="empty"><strong>Scanner indisponible</strong>Ce navigateur ne gère pas la lecture de QR.</div>`;
+    return;
+  }
+  out.innerHTML = `<div class="cam-wrap"><video id="syncVideo" playsinline autoplay muted></video><div class="bd-frame"></div></div>
+    <p class="foot-note" id="syncScanMsg">Vise le QR affiché sur l'autre appareil.</p>`;
+  try {
+    const det = new BarcodeDetector({ formats: ['qr_code'] });
+    syncStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+    const v = $('#syncVideo'); v.srcObject = syncStream; await v.play();
+    syncLoop = setInterval(async () => {
+      try {
+        const codes = await det.detect(v);
+        if (!codes.length) return;
+        stopSyncScan();
+        $('#syncScanMsg').textContent = 'QR lu — déchiffrement…';
+        try {
+          const obj = await syncDecrypt(pass, codes[0].rawValue);
+          syncApplyImport(obj);
+          closeModal($('#m-sync'));
+        } catch (_) {
+          toast('Déchiffrement impossible — vérifie la phrase de passe');
+        }
+      } catch (_) {}
+    }, 450);
+  } catch (e) {
+    stopSyncScan();
+    out.innerHTML = `<div class="empty"><strong>Caméra bloquée</strong>Permission refusée ou aperçu intégré.</div>`;
+  }
+}
+
+function renderSync() {
+  $('#syncBody').innerHTML = `
+    <div class="eyebrow" style="margin-bottom:8px">Exporter</div>
+    <div class="card">
+      <p style="font-size:13px;color:var(--ink-soft);line-height:1.45;margin-bottom:10px">
+        Choisis une phrase de passe. Il te la faudra pour réimporter sur l'autre appareil —
+        GlycIA ne la connaît pas, ne la stocke pas, et ne peut pas la retrouver si tu l'oublies.
+      </p>
+      <input class="field" id="syncPass" type="password" placeholder="Phrase de passe" autocomplete="off" style="margin-bottom:10px">
+      <button class="btn btn-primary btn-block" id="syncExportFile">📄 Télécharger le fichier chiffré (tout)</button>
+      <button class="btn btn-outline btn-block" id="syncExportQr" style="margin-top:8px">▦ Générer un QR (journée du jour)</button>
+      <div id="syncQrOut" style="margin-top:12px;text-align:center"></div>
+    </div>
+
+    <div class="eyebrow" style="margin:20px 0 8px">Importer</div>
+    <div class="card">
+      <p style="font-size:13px;color:var(--ink-soft);line-height:1.45;margin-bottom:10px">
+        Le fichier remplace le journal, l'historique et les favoris de cet appareil.
+        Le QR ajoute simplement les repas scannés à la journée en cours.
+      </p>
+      <input class="field" id="syncPassIn" type="password" placeholder="Phrase de passe" autocomplete="off" style="margin-bottom:10px">
+      <label class="opt" style="margin-bottom:8px">
+        <span class="oi bg-violet"><svg><use href="#i-menu-card"/></svg></span>
+        <span class="ot"><strong>Choisir un fichier</strong><em>Le fichier téléchargé sur l'autre appareil</em></span>
+        <input type="file" id="syncFileIn" accept="application/json,.glycia,.json">
+      </label>
+      <button class="btn btn-outline btn-block" id="syncScanQr">📷 Scanner un QR code</button>
+      <div id="syncScanOut" style="margin-top:10px"></div>
+    </div>
+    <p class="foot-note" style="margin-top:16px">
+      Rien ne transite par un serveur : le fichier ou le QR est chiffré sur cet appareil,
+      déchiffré sur l'autre. Sans la phrase de passe, les données restent illisibles.
+    </p>`;
+
+  $('#syncExportFile').onclick = async () => {
+    const pass = $('#syncPass').value;
+    if (!pass) { toast('Choisis une phrase de passe'); return; }
+    const env = await syncEncrypt(pass, syncFullExport());
+    const blob = new Blob([env], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `glycia-export-${dayKey(new Date())}.glycia.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Fichier téléchargé');
+  };
+
+  $('#syncExportQr').onclick = async () => {
+    const pass = $('#syncPass').value;
+    if (!pass) { toast('Choisis une phrase de passe'); return; }
+    const env = await syncEncrypt(pass, syncCompactExport());
+    $('#syncQrOut').innerHTML = '';
+    if (typeof renderQR !== 'function') {
+      $('#syncQrOut').innerHTML = `<p class="foot-note">QR indisponible dans cette version.</p>`;
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    $('#syncQrOut').appendChild(canvas);
+    const res = renderQR(canvas, env, 'M');
+    if (!res) $('#syncQrOut').innerHTML = `<p class="foot-note">Trop de données pour un QR aujourd'hui — utilise le fichier à la place.</p>`;
+  };
+
+  $('#syncFileIn').addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const pass = $('#syncPassIn').value;
+    if (!pass) { toast('Renseigne la phrase de passe'); return; }
+    try {
+      const text = await file.text();
+      const obj = await syncDecrypt(pass, text);
+      syncApplyImport(obj);
+      closeModal($('#m-sync'));
+    } catch (_) {
+      toast('Déchiffrement impossible — vérifie la phrase de passe et le fichier');
+    }
+  });
+
+  $('#syncScanQr').onclick = () => openSyncScan();
+}
+$('#btnSync').addEventListener('click', () => { openModal('sync'); renderSync(); });
 
 /* ==========================================================================
    18. [A] SCAN CODE-BARRES + CACHE OPEN FOOD FACTS

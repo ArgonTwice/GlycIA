@@ -1324,6 +1324,11 @@ input[type=range]::-moz-range-thumb{
           <h4>Liste de courses</h4>
           <p>Depuis tes recettes et ton plateau, groupée par rayon</p>
         </button>
+        <button class="tool" id="btnSync">
+          <span class="tool-ico bg-violet">🔒</span>
+          <h4>Multi-appareils</h4>
+          <p>Export chiffré par fichier ou QR, sans serveur</p>
+        </button>
       </div>
     </div>
 
@@ -1580,6 +1585,19 @@ input[type=range]::-moz-range-thumb{
       <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
     </div>
     <div id="shopBody"></div>
+  </div>
+</div>
+
+<!-- ============ MODALE : MULTI-APPAREILS ============ -->
+<div class="veil" id="m-sync" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1"><h2 id="syncTitle">Multi-appareils</h2>
+        <p>Export chiffré, sans compte ni serveur.</p></div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="syncBody"></div>
   </div>
 </div>
 
