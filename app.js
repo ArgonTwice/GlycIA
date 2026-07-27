@@ -7,7 +7,7 @@
 
 /* Données séparées : chargées en parallèle du script, mises en cache par le SW */
 const DB = await (await fetch(new URL('./db.json', import.meta.url))).json();
-const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, CAKE_PRESETS } = DB;
+const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT } = DB;
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -117,6 +117,7 @@ function refreshBubble() {
    ========================================================================== */
 const state = {
   gp: false,
+  ramadan: false,
   profile: null,
   journal: [],
   analysis: null,
@@ -581,18 +582,19 @@ async function openCam() {
 const TREAT_LABEL = { insuline: 'insuline', oral: 'traitement oral', alimentaire: 'alimentaire seul' };
 function profileContext() {
   const p = state.profile;
-  if (!p || (!p.type && !p.treatment && !p.gp)) return '';
   const bits = [];
-  if (p.type) bits.push(`diabète type ${p.type}`);
-  if (p.treatment) bits.push(TREAT_LABEL[p.treatment] || p.treatment);
-  if (p.gp) bits.push('gastroparésie');
+  if (p && p.type) bits.push(`diabète type ${p.type}`);
+  if (p && p.treatment) bits.push(TREAT_LABEL[p.treatment] || p.treatment);
+  if (p && p.gp) bits.push('gastroparésie');
+  if (state.ramadan) bits.push('mois de Ramadan (jeûne)');
   return bits.length ? `Profil : ${bits.join(', ')}. ` : '';
 }
 const momentOf = h => h < 11 ? 'matin' : h < 15 ? 'midi' : h < 18 ? 'gouter' : 'soir';
 const MOMENT_LABEL = { matin: 'petit-déjeuner', midi: 'déjeuner', gouter: 'goûter', soir: 'dîner' };
+const ramadanMoment = h => (h >= 3 && h < 6) ? 'Suhoor (avant l\'aube)' : (h >= 18 && h < 22) ? 'Iftar (rupture du jeûne)' : 'hors repas, pendant le jeûne';
 function dayContext() {
   const t = totalCarbs(), n = state.journal.length, ig = avgIg();
-  const moment = MOMENT_LABEL[momentOf(new Date().getHours())];
+  const moment = state.ramadan ? ramadanMoment(new Date().getHours()) : MOMENT_LABEL[momentOf(new Date().getHours())];
   const profil = profileContext();
   if (!n) return `${profil}Premier repas noté de la journée, plutôt un ${moment}. Repère indicatif quotidien : ${REPERE} g de glucides.`;
   return `${profil}Déjà ${n} repas noté${n > 1 ? 's' : ''} aujourd'hui, ${t} g de glucides cumulés, IG moyen pondéré ${ig}. `
@@ -1909,6 +1911,116 @@ function renderGpLog() {
 renderGastro();
 
 /* ==========================================================================
+   25. MODE RAMADAN — fractionnement inversé, repas nocturnes
+   Structure identique au mode gastroparésie : un jeu de règles (phases + tips),
+   un filtre (aliments par créneau), un jeu de recettes. Mode local à cette vue,
+   sans filtrage global de l'appli (contrairement au mode gastroparésie).
+   ========================================================================== */
+let ramPhase = 1, ramLvl = 0, ramQ = '', ramOpenR = -1;
+const RAM_LVL = { 1:['ok','Idéal'], 2:['mid','Avec modération'], 3:['no','Mieux éviter'] };
+
+function renderRamadan() {
+  $$('[data-ramsw]').forEach(el => { el.checked = state.ramadan; el.setAttribute('aria-checked', String(state.ramadan)); });
+
+  $('#ramPhases').innerHTML = RAMADAN_PHASES.map(p => `
+    <button class="gp-ph ${ramPhase === p.id ? 'on' : ''}" data-ramph="${p.id}">
+      <span class="e">${p.e}</span><b>${esc(p.t)}</b><span class="s">${esc(p.s)}</span>
+    </button>`).join('');
+  $$('#ramPhases [data-ramph]').forEach(b => b.onclick = () => { ramPhase = +b.dataset.ramph; renderRamadan(); });
+
+  const p = RAMADAN_PHASES.find(x => x.id === ramPhase);
+  $('#ramPhaseCard').innerHTML = `
+    <p style="font-size:14.5px;line-height:1.5;color:var(--ink)">${esc(p.d)}</p>
+    <div class="gp-ex">${p.ex.map(x => `<span>${esc(x)}</span>`).join('')}</div>
+    <div class="glycia-note" style="margin-top:14px">
+      <div class="ava sm" aria-hidden="true" style="width:34px;height:34px">${mascotSVG('care')}</div>
+      <div><span class="who">GlycIA —</span> ${esc(p.note)}</div>
+    </div>`;
+
+  $('#ramTips').innerHTML = RAMADAN_TIPS.map(([e, t, d]) => `
+    <div class="gp-tip"><span class="e">${e}</span><div><b>${esc(t)}</b><p>${esc(d)}</p></div></div>`).join('');
+
+  renderRamFoods();
+
+  $('#ramRecipes').innerHTML = RAMADAN_RECIPES.map((r, i) => `
+    <div class="frow ${ramOpenR === i ? 'open' : ''}">
+      <button class="fhead" data-ramr="${i}">
+        <span class="fe">${RAMADAN_PHASES.find(x => x.id === r.ph).e}</span>
+        <span class="fn"><b>${esc(r.t)}</b><span>${r.ph === 1 ? 'Suhoor' : 'Iftar'} · ${r.min} min · ${igLabel(r.ig)}</span></span>
+        <span class="fc"><b>${r.c}</b><span>g gluc.</span></span>
+      </button>
+      <div class="fdet">
+        <div class="fgrid">
+          <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig || '—'}</b><span>Indice IG</span></div>
+          <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
+        </div>
+        <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
+        ${r.i.map(x => `<div class="gp-ing">${esc(x)}</div>`).join('')}
+        <div class="eyebrow" style="margin:14px 0 8px">Préparation</div>
+        ${r.s.map((x, k) => `<div class="stepline"><span class="n" style="background:var(--violet)">${k + 1}</span><div class="txt">${esc(x)}</div></div>`).join('')}
+        <div class="glycia-note" style="margin:10px 0 12px">
+          <div class="ava sm" aria-hidden="true" style="width:34px;height:34px">${mascotSVG('happy')}</div>
+          <div><span class="who">GlycIA —</span> ${esc(r.n)}</div>
+        </div>
+        <button class="btn btn-primary btn-block" data-rameat="${i}">🍽️ Passer à table</button>
+      </div>
+    </div>`).join('');
+  $$('#ramRecipes [data-ramr]').forEach(b => b.onclick = () => { ramOpenR = ramOpenR === +b.dataset.ramr ? -1 : +b.dataset.ramr; renderRamadan(); });
+  $$('#ramRecipes [data-rameat]').forEach(b => b.onclick = () => {
+    const r = RAMADAN_RECIPES[+b.dataset.rameat];
+    addMeal({ icon: r.ph === 1 ? '🌙' : '🌆', name: r.t, carbs: r.c, ig: r.ig, src:'recette' });
+    toast(r.ph === 1 ? 'Ajouté au journal. Bon suhoor.' : 'Ajouté au journal. Bon iftar.');
+  });
+
+  $('#ramAlert').innerHTML = RAMADAN_ALERT.map(x => `<li>${esc(x)}</li>`).join('');
+}
+
+function renderRamFoods() {
+  $('#ramLvls').innerHTML = [[0,'Tout'], [1,'✅ Idéal'], [2,'⚠️ Modération'], [3,'⛔ À éviter']]
+    .map(([v, l]) => `<button class="cat ${ramLvl === v ? 'on' : ''}" data-raml="${v}">${l}</button>`).join('');
+  $$('#ramLvls [data-raml]').forEach(b => b.onclick = () => { ramLvl = +b.dataset.raml; renderRamFoods(); });
+
+  let n = 0;
+  const html = Object.entries(RAMADAN_FOODS).map(([cat, list]) => {
+    const rows = list.filter(([nm, lv]) =>
+      (!ramLvl || lv === ramLvl) && (!ramQ || normalize(nm + ' ' + cat).includes(ramQ)));
+    if (!rows.length) return '';
+    n += rows.length;
+    return `<div class="gp-cat">${esc(cat)}</div>` + rows.map(([nm, lv, why]) => `
+      <div class="gp-f ${RAM_LVL[lv][0]}">
+        <span class="gp-dot"></span>
+        <div><b>${esc(nm)}</b><p>${esc(why)}</p></div>
+      </div>`).join('');
+  }).join('');
+  $('#ramFoods').innerHTML = html || `<div class="empty"><strong>Aucun aliment</strong>Change de filtre ou vide la recherche.</div>`;
+  $('#ramCount').textContent = n ? `${n} aliment${n > 1 ? 's' : ''}` : '';
+}
+$('#ramQ').addEventListener('input', e => { ramQ = normalize(e.target.value.trim()); renderRamFoods(); });
+
+function setRamadan(v) {
+  state.ramadan = v;
+  document.body.classList.toggle('ram-on', v);
+  $$('[data-ramsw]').forEach(el => { el.checked = v; el.setAttribute('aria-checked', String(v)); });
+  toast(v ? 'Mode Ramadan activé — GlycIA suit le fractionnement inversé' : 'Mode Ramadan désactivé');
+  if (v) say('Mode Ramadan activé. Suhoor avant l\'aube, iftar au coucher du soleil : je m\'adapte au rythme inversé.', 'care', 9000);
+  saveState();
+}
+$$('[data-ramsw]').forEach(el => el.addEventListener('change', () => setRamadan(el.checked)));
+
+/* Recettes Ramadan surfaçables depuis la recherche de recettes générale (sans toucher au score gastroparésie) */
+const RAM_AS_RECIPES = RAMADAN_RECIPES.map(r => ({
+  key: ['ramadan', 'jeune', 'jeûne', ...(r.ph === 1 ? ['suhoor'] : ['iftar', 'rupture']), ...normalize(r.t).split(' ')],
+  title: r.t, time: r.min, portions: 2, carbs: r.c, ig: r.ig,
+  tag: (r.ph === 1 ? 'Suhoor' : 'Iftar') + ' — Ramadan', note: r.n,
+  ing: r.i.map(x => { const m = x.match(/^(.*?)\s+([\d,.]+\s*\S*|\S+)$/); return m ? [m[1], m[2]] : [x, '']; }),
+  steps: r.s.map(x => [x, Math.max(2, Math.round(r.min / r.s.length))])
+}));
+RECIPES.push(...RAM_AS_RECIPES);
+
+renderRamadan();
+
+/* ==========================================================================
    18. [A] SCAN CODE-BARRES + CACHE OPEN FOOD FACTS
    ========================================================================== */
 const OFFCACHE = new Map();          // code-barres ou requête -> produit
@@ -2192,6 +2304,7 @@ function saveState() {
     journal: state.journal.map(m => ({ ...m, time: m.time.toISOString() })),
     favorites: FAVORITES,
     gp: state.gp,
+    ramadan: state.ramadan,
     past: PAST.map(p => ({ d: p.d.toISOString(), carbs: p.carbs, ig: p.ig, meals: p.meals, byMoment: p.byMoment })),
     gpLog: state.gpLog.map(l => ({ t: l.t.toISOString(), f: l.f, meal: l.meal }))
   }));
@@ -2219,6 +2332,7 @@ function loadState() {
       state.journal = [];
     }
     if (o.gp) setTimeout(() => setGp(true), 0);
+    if (o.ramadan) setTimeout(() => setRamadan(true), 0);
     return true;
   } catch (_) { return false; }
 }
@@ -2753,6 +2867,8 @@ $('#btnHosp').addEventListener('click', () => { openModal('hosp'); renderHospita
    ========================================================================== */
 $('#goGastro').addEventListener('click', () => go('gastro'));
 $('#goGastro2').addEventListener('click', () => go('gastro'));
+$('#goRamadan').addEventListener('click', () => go('ramadan'));
+$('#goRamadan2').addEventListener('click', () => go('ramadan'));
 $('#btnScan2').addEventListener('click', openScan);
 $('#todayLabel').textContent = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
 seedPast();
