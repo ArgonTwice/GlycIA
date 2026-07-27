@@ -1,0 +1,11 @@
+name = "glycia-proxy"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Restreint l'accès à ton déploiement GitHub Pages.
+# Mets "*" seulement pour tester en local.
+[vars]
+ALLOWED_ORIGIN = "https://argontwice.github.io"
+
+# La clé n'est PAS ici. Elle se pose en secret :
+#   npx wrangler secret put ANTHROPIC_API_KEY

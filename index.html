@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F9F8F3">
+<title>GlycIA — ton assistant repas, sans prise de tête</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS
+   ============================================================ */
+:root{
+  --cream:#F9F8F3;
+  --peach:#FF8A65;
+  --peach-deep:#F2704A;
+  --sage:#81C784;
+  --sage-deep:#5FA766;
+  --violet:#B39DDB;
+  --violet-deep:#8E75C4;
+  --terra:#E57373;
+  --terra-deep:#CF5F5F;
+
+  --white:#FFFFFF;
+  --ink:#3B3733;
+  --ink-soft:#7C746C;
+  --ink-faint:#A9A199;
+  --line:#EDE8DE;
+  --sand:#F2EEE4;
+
+  --r-lg:22px;
+  --r-md:18px;
+  --r-sm:14px;
+  --r-pill:999px;
+
+  --sh-soft:0 6px 22px rgba(59,55,51,.06);
+  --sh-lift:0 12px 34px rgba(59,55,51,.10);
+  --sh-press:0 3px 10px rgba(59,55,51,.08);
+
+  --pad:18px;
+  --nav-h:74px;
+  --display:"Fraunces", Georgia, "Times New Roman", serif;
+  --body:"Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--cream);
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:16px;
+  line-height:1.5;
+  font-weight:400;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+button{font-family:inherit;font-size:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,textarea,select{font-family:inherit;font-size:16px;color:inherit}
+h1,h2,h3,h4{margin:0;font-family:var(--display);font-weight:600;letter-spacing:-.01em;line-height:1.15}
+p{margin:0}
+ul{margin:0;padding:0;list-style:none}
+:focus-visible{outline:3px solid var(--violet);outline-offset:3px;border-radius:6px}
+
+/* ============================================================
+   SHELL
+   ============================================================ */
+.app{
+  max-width:620px;
+  margin:0 auto;
+  min-height:100dvh;
+  padding:0 var(--pad) calc(var(--nav-h) + 34px);
+  position:relative;
+}
+
+/* --- Header --- */
+.top{
+  position:sticky;top:0;z-index:40;
+  margin:0 calc(var(--pad) * -1);
+  padding:14px var(--pad) 12px;
+  background:linear-gradient(180deg, var(--cream) 74%, rgba(249,248,243,0));
+  display:flex;align-items:flex-start;gap:12px;
+}
+.brand{display:flex;align-items:center;gap:11px;min-width:0;flex:1}
+.brand-txt{min-width:0}
+.brand-name{
+  font-family:var(--display);font-size:23px;font-weight:600;
+  letter-spacing:-.02em;line-height:1;
+}
+.brand-name em{font-style:normal;color:var(--violet-deep)}
+.brand-sub{font-size:11.5px;color:var(--ink-faint);letter-spacing:.09em;text-transform:uppercase;font-weight:500;margin-top:3px}
+
+.sos{
+  flex:none;display:flex;align-items:center;gap:7px;
+  background:var(--terra);color:#fff;font-weight:600;font-size:14px;
+  padding:11px 15px;border-radius:var(--r-pill);
+  box-shadow:0 6px 16px rgba(229,115,115,.34);
+  transition:transform .16s ease, box-shadow .16s ease;
+}
+.sos:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(229,115,115,.42)}
+.sos:active{transform:scale(.96)}
+.sos svg{width:17px;height:17px}
+
+/* --- Mascotte + bulle --- */
+.mascot-row{display:flex;align-items:flex-end;gap:12px;margin:2px 0 20px}
+.bubble{
+  flex:1;background:var(--white);border-radius:var(--r-lg);
+  border-bottom-left-radius:6px;
+  padding:14px 17px;box-shadow:var(--sh-soft);
+  font-size:15.5px;color:var(--ink);position:relative;
+  animation:pop .4s cubic-bezier(.2,1.4,.4,1) both;
+}
+.bubble b{font-weight:600;color:var(--violet-deep)}
+
+/* Avatar SVG */
+.ava{width:58px;height:58px;flex:none;position:relative}
+.ava svg{width:100%;height:100%;display:block;overflow:visible}
+.ava-blob{animation:breathe 5.5s ease-in-out infinite;transform-origin:32px 34px}
+.ava-glow{
+  position:absolute;inset:-9px;border-radius:50%;
+  background:radial-gradient(circle,rgba(179,157,219,.42),rgba(179,157,219,0) 68%);
+  animation:halo 5.5s ease-in-out infinite;z-index:-1;
+}
+.lid{transform-origin:center;animation:blink 6.2s infinite}
+.lid.b{animation-delay:.06s}
+.ava.sm{width:40px;height:40px}
+.ava.lg{width:96px;height:96px}
+
+@keyframes breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.03)}}
+@keyframes halo{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:.9;transform:scale(1.08)}}
+@keyframes blink{0%,92%,100%{transform:scaleY(0)}94%,97%{transform:scaleY(1)}}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ============================================================
+   HERO — l'assiette du jour (élément signature)
+   ============================================================ */
+.plate-card{
+  background:var(--white);border-radius:28px;padding:22px 20px 20px;
+  box-shadow:var(--sh-soft);margin-bottom:16px;
+  display:flex;align-items:center;gap:20px;
+}
+.plate{position:relative;width:142px;height:142px;flex:none}
+.plate svg{width:100%;height:100%;transform:rotate(-90deg)}
+.plate-ring{transition:stroke-dashoffset .9s cubic-bezier(.3,1,.4,1), stroke .5s ease}
+.plate-mid{
+  position:absolute;inset:0;display:grid;place-content:center;text-align:center;
+}
+.plate-num{font-family:var(--display);font-size:38px;font-weight:600;line-height:.95;letter-spacing:-.03em}
+.plate-unit{font-size:12px;color:var(--ink-faint);letter-spacing:.13em;text-transform:uppercase;font-weight:600;margin-top:5px}
+.plate-side{flex:1;min-width:0}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+.plate-side h2{font-size:21px;margin:6px 0 8px}
+.plate-note{font-size:13.5px;color:var(--ink-soft);line-height:1.45}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.chip{
+  font-size:12.5px;font-weight:500;padding:6px 11px;border-radius:var(--r-pill);
+  background:var(--sand);color:var(--ink-soft);
+}
+.chip.sage{background:rgba(129,199,132,.18);color:var(--sage-deep);font-weight:600}
+.chip.peach{background:rgba(255,138,101,.16);color:var(--peach-deep);font-weight:600}
+.chip.violet{background:rgba(179,157,219,.2);color:var(--violet-deep);font-weight:600}
+
+/* ============================================================
+   BOUTONS
+   ============================================================ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  padding:15px 20px;border-radius:var(--r-pill);font-weight:600;font-size:16px;
+  transition:transform .14s ease, box-shadow .14s ease, background .14s ease;
+}
+.btn:active{transform:scale(.975)}
+.btn svg{width:19px;height:19px;flex:none}
+.btn-primary{background:var(--peach);color:#fff;box-shadow:0 8px 20px rgba(255,138,101,.34)}
+.btn-primary:hover{background:var(--peach-deep);box-shadow:0 12px 26px rgba(255,138,101,.42)}
+.btn-sage{background:var(--sage);color:#fff;box-shadow:0 8px 20px rgba(129,199,132,.32)}
+.btn-sage:hover{background:var(--sage-deep)}
+.btn-violet{background:var(--violet);color:#fff;box-shadow:0 8px 20px rgba(179,157,219,.32)}
+.btn-violet:hover{background:var(--violet-deep)}
+.btn-terra{background:var(--terra);color:#fff;box-shadow:0 8px 20px rgba(229,115,115,.3)}
+.btn-terra:hover{background:var(--terra-deep)}
+.btn-ghost{background:var(--sand);color:var(--ink)}
+.btn-ghost:hover{background:#E9E3D6}
+.btn-outline{background:transparent;border:1.5px solid var(--line);color:var(--ink-soft)}
+.btn-outline:hover{border-color:var(--ink-faint);color:var(--ink)}
+.btn-block{display:flex;width:100%}
+.btn-lg{padding:19px 22px;font-size:17.5px}
+.btn[disabled]{opacity:.45;pointer-events:none}
+
+.cta-shoot{
+  position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#FF9A78,#FF8A65 55%,#F2704A);
+}
+.cta-shoot .cta-sub{display:block;font-size:12.5px;font-weight:400;opacity:.85;margin-top:2px}
+.cta-shoot .cta-txt{text-align:left;line-height:1.15}
+
+/* ============================================================
+   SECTIONS
+   ============================================================ */
+.sect{margin:26px 0 0;animation:rise .4s ease both}
+.sect-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px;padding:0 2px}
+.sect-head h3{font-size:19px}
+.sect-head .link{font-size:13.5px;color:var(--violet-deep);font-weight:600}
+
+.card{background:var(--white);border-radius:var(--r-lg);padding:18px;box-shadow:var(--sh-soft)}
+
+/* --- Favoris : carrousel --- */
+.rail{
+  display:flex;gap:12px;overflow-x:auto;padding:4px 2px 12px;
+  margin:0 calc(var(--pad) * -1);padding-left:var(--pad);padding-right:var(--pad);
+  scroll-snap-type:x mandatory;scrollbar-width:none;
+}
+.rail::-webkit-scrollbar{display:none}
+.fav{
+  flex:none;width:158px;scroll-snap-align:start;text-align:left;
+  background:var(--white);border-radius:var(--r-md);padding:15px 15px 13px;
+  box-shadow:var(--sh-soft);transition:transform .16s ease, box-shadow .16s ease;
+  display:flex;flex-direction:column;gap:8px;
+}
+.fav:hover{transform:translateY(-3px);box-shadow:var(--sh-lift)}
+.fav:active{transform:scale(.97)}
+.fav-ico{font-size:26px;line-height:1}
+.fav-name{font-weight:600;font-size:14.5px;line-height:1.25}
+.fav-meta{font-size:12.5px;color:var(--ink-faint)}
+.fav-add{
+  margin-top:auto;display:flex;align-items:center;gap:6px;
+  font-size:12.5px;font-weight:600;color:var(--peach-deep);
+}
+.fav-add svg{width:15px;height:15px}
+.fav.ghost{
+  border:1.5px dashed var(--line);box-shadow:none;background:transparent;
+  align-items:center;justify-content:center;color:var(--ink-faint);text-align:center;
+  font-size:13.5px;font-weight:500;
+}
+
+/* --- Outils grid --- */
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tool{
+  text-align:left;background:var(--white);border-radius:var(--r-md);padding:16px;
+  box-shadow:var(--sh-soft);display:flex;flex-direction:column;gap:9px;
+  transition:transform .16s ease, box-shadow .16s ease;
+}
+.tool:hover{transform:translateY(-3px);box-shadow:var(--sh-lift)}
+.tool:active{transform:scale(.98)}
+.tool-ico{
+  width:42px;height:42px;border-radius:13px;display:grid;place-content:center;flex:none;
+}
+.tool-ico svg{width:21px;height:21px}
+.tool h4{font-family:var(--body);font-size:15px;font-weight:600;letter-spacing:0}
+.tool p{font-size:12.5px;color:var(--ink-faint);line-height:1.35}
+.bg-peach{background:rgba(255,138,101,.16);color:var(--peach-deep)}
+.bg-sage{background:rgba(129,199,132,.2);color:var(--sage-deep)}
+.bg-violet{background:rgba(179,157,219,.22);color:var(--violet-deep)}
+.bg-terra{background:rgba(229,115,115,.16);color:var(--terra-deep)}
+
+/* --- Timeline journal --- */
+.tl{position:relative;padding-left:26px}
+.tl::before{
+  content:"";position:absolute;left:7px;top:10px;bottom:14px;width:2px;
+  background:repeating-linear-gradient(var(--line) 0 5px, transparent 5px 10px);
+}
+.tl-item{position:relative;margin-bottom:12px;animation:rise .35s ease both}
+.tl-dot{
+  position:absolute;left:-26px;top:19px;width:16px;height:16px;border-radius:50%;
+  background:var(--white);border:3px solid var(--sage);
+}
+.tl-dot.peach{border-color:var(--peach)}
+.tl-dot.violet{border-color:var(--violet)}
+.tl-dot.sand{border-color:var(--ink-faint)}
+.meal{
+  background:var(--white);border-radius:var(--r-md);padding:14px 15px;
+  box-shadow:var(--sh-soft);display:flex;gap:12px;align-items:flex-start;
+}
+.meal-ico{font-size:24px;line-height:1;margin-top:1px}
+.meal-body{flex:1;min-width:0}
+.meal-top{display:flex;align-items:baseline;gap:8px;justify-content:space-between}
+.meal-name{font-weight:600;font-size:15px;line-height:1.25}
+.meal-time{font-size:12px;color:var(--ink-faint);flex:none;font-variant-numeric:tabular-nums}
+.meal-stats{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.stat{
+  font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:var(--r-pill);
+  background:var(--sand);color:var(--ink-soft);font-variant-numeric:tabular-nums;
+}
+.stat.g{background:rgba(255,138,101,.14);color:var(--peach-deep)}
+.stat.ig-low{background:rgba(129,199,132,.2);color:var(--sage-deep)}
+.stat.ig-mid{background:rgba(255,183,77,.24);color:#B4741C}
+.stat.ig-high{background:rgba(229,115,115,.16);color:var(--terra-deep)}
+.meal-del{
+  flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-content:center;
+  color:var(--ink-faint);transition:background .14s ease,color .14s ease;
+}
+.meal-del:hover{background:rgba(229,115,115,.14);color:var(--terra-deep)}
+.meal-del svg{width:15px;height:15px}
+
+.empty{
+  text-align:center;padding:30px 20px;border-radius:var(--r-lg);
+  border:1.5px dashed var(--line);color:var(--ink-faint);font-size:14px;
+}
+.empty strong{display:block;color:var(--ink-soft);font-weight:600;margin-bottom:4px;font-size:15px}
+
+/* ============================================================
+   NAV BAS
+   ============================================================ */
+.nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  height:calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-bottom:env(safe-area-inset-bottom);
+  background:rgba(255,255,255,.92);backdrop-filter:blur(14px);
+  border-top:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;gap:2px;
+}
+.nav-in{width:100%;max-width:620px;display:flex;align-items:center;padding:0 8px}
+.nav-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:9px 4px;color:var(--ink-faint);font-size:10.5px;font-weight:600;
+  letter-spacing:.02em;transition:color .16s ease;
+}
+.nav-btn svg{width:22px;height:22px;transition:transform .18s ease}
+.nav-btn[aria-selected="true"]{color:var(--violet-deep)}
+.nav-btn[aria-selected="true"] svg{transform:translateY(-2px) scale(1.06)}
+.nav-fab{
+  flex:none;width:60px;height:60px;border-radius:50%;margin:0 6px;
+  background:linear-gradient(135deg,#FF9A78,#F2704A);color:#fff;
+  display:grid;place-content:center;
+  box-shadow:0 10px 24px rgba(255,138,101,.45);
+  transition:transform .16s ease;
+}
+.nav-fab svg{width:26px;height:26px}
+.nav-fab:active{transform:scale(.93)}
+
+/* ============================================================
+   MODALES
+   ============================================================ */
+.veil{
+  position:fixed;inset:0;z-index:100;display:none;
+  background:rgba(59,55,51,.42);backdrop-filter:blur(3px);
+  align-items:flex-end;justify-content:center;
+}
+.veil.on{display:flex;animation:fade .22s ease both}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet{
+  width:100%;max-width:620px;max-height:92dvh;overflow-y:auto;
+  background:var(--cream);border-radius:28px 28px 0 0;
+  padding:10px 20px calc(28px + env(safe-area-inset-bottom));
+  animation:slide .32s cubic-bezier(.2,.9,.3,1) both;
+  box-shadow:0 -12px 40px rgba(59,55,51,.18);
+}
+@keyframes slide{from{transform:translateY(100%)}to{transform:none}}
+.grab{width:42px;height:5px;border-radius:99px;background:var(--line);margin:0 auto 14px}
+.sheet-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px}
+.sheet-head h2{font-size:24px;flex:1;line-height:1.1}
+.sheet-head p{font-size:13.5px;color:var(--ink-soft);margin-top:5px}
+.x{
+  flex:none;width:36px;height:36px;border-radius:50%;background:var(--sand);
+  display:grid;place-content:center;color:var(--ink-soft);
+}
+.x:hover{background:#E9E3D6;color:var(--ink)}
+.x svg{width:16px;height:16px}
+.sheet-foot{display:flex;gap:10px;margin-top:20px}
+.sheet-foot .btn{flex:1}
+
+@media(min-width:640px){
+  .veil{align-items:center}
+  .sheet{border-radius:28px;max-height:88dvh;margin:0 16px}
+}
+
+/* --- SOS --- */
+.sos-rule{
+  background:linear-gradient(140deg, rgba(229,115,115,.13), rgba(229,115,115,.06));
+  border-radius:var(--r-lg);padding:18px;margin-bottom:16px;
+}
+.sos-rule h4{font-family:var(--display);font-size:19px;color:var(--terra-deep);margin-bottom:4px}
+.sos-rule p{font-size:13.5px;color:var(--ink-soft)}
+.sos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.sos-opt{
+  background:var(--white);border-radius:var(--r-sm);padding:13px 8px;text-align:center;
+  box-shadow:var(--sh-press);
+}
+.sos-opt .e{font-size:26px;line-height:1;display:block;margin-bottom:7px}
+.sos-opt .q{font-weight:700;font-size:14px;color:var(--terra-deep)}
+.sos-opt .l{font-size:11.5px;color:var(--ink-faint);line-height:1.3;margin-top:2px}
+
+.timer-wrap{text-align:center;background:var(--white);border-radius:var(--r-lg);padding:22px 18px;box-shadow:var(--sh-soft)}
+.timer-ring{position:relative;width:186px;height:186px;margin:0 auto 6px}
+.timer-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.timer-ring circle{transition:stroke-dashoffset 1s linear}
+.timer-mid{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.timer-val{
+  font-family:var(--display);font-size:44px;font-weight:600;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;line-height:1;
+}
+.timer-lbl{font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin-top:6px}
+.timer-ctl{display:flex;gap:9px;justify-content:center;margin-top:16px}
+.timer-ctl .btn{flex:1;padding:13px 14px;font-size:15px}
+.timer-msg{font-size:13.5px;color:var(--ink-soft);margin-top:14px;line-height:1.45;min-height:38px}
+.timer-msg.done{color:var(--terra-deep);font-weight:600}
+
+/* --- Analyse photo --- */
+.drop{
+  border:2px dashed rgba(255,138,101,.5);border-radius:var(--r-lg);
+  background:rgba(255,138,101,.06);padding:30px 20px;text-align:center;
+  transition:background .18s ease, border-color .18s ease;cursor:pointer;display:block;width:100%;
+}
+.drop:hover,.drop.hot{background:rgba(255,138,101,.13);border-color:var(--peach)}
+.drop .ico{
+  width:60px;height:60px;border-radius:50%;background:var(--white);
+  display:grid;place-content:center;margin:0 auto 12px;color:var(--peach);box-shadow:var(--sh-press);
+}
+.drop .ico svg{width:27px;height:27px}
+.drop strong{display:block;font-size:16px;font-weight:600;margin-bottom:4px}
+.drop span{font-size:13px;color:var(--ink-faint)}
+/* Sources d'image */
+.shoot-opts{display:grid;gap:10px;margin-bottom:6px}
+.opt{
+  position:relative;display:flex;align-items:center;gap:13px;width:100%;text-align:left;cursor:pointer;
+  background:var(--white);border-radius:var(--r-md);padding:15px;box-shadow:var(--sh-press);
+  border:1.5px solid transparent;transition:border-color .16s ease, transform .16s ease;
+}
+.opt:hover{border-color:var(--peach);transform:translateY(-2px)}
+.opt.hot{border-color:var(--peach);background:rgba(255,138,101,.08)}
+.opt .oi{width:44px;height:44px;border-radius:14px;display:grid;place-content:center;flex:none}
+.opt .oi svg{width:21px;height:21px}
+.opt .ot{flex:1;min-width:0}
+.opt .ot strong{display:block;font-size:15px;font-weight:600;line-height:1.2}
+.opt .ot em{display:block;font-style:normal;font-size:12.5px;color:var(--ink-faint);line-height:1.35;margin-top:2px}
+.opt input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0}
+.cam-wrap{position:relative;border-radius:var(--r-lg);overflow:hidden;background:#2B2723;aspect-ratio:3/4;max-height:58dvh}
+.cam-wrap video{width:100%;height:100%;object-fit:cover;display:block}
+.cam-shot{
+  position:absolute;left:50%;bottom:16px;transform:translateX(-50%);
+  width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.28);
+  border:4px solid rgba(255,255,255,.85);box-shadow:0 6px 20px rgba(0,0,0,.4);
+}
+.cam-shot::after{content:"";position:absolute;inset:6px;border-radius:50%;background:#fff;transition:transform .12s ease}
+.cam-shot:active::after{transform:scale(.84)}
+.demo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.demo-cell{
+  background:var(--white);border-radius:var(--r-sm);padding:11px 4px;text-align:center;
+  box-shadow:var(--sh-press);transition:transform .14s ease, box-shadow .14s ease;
+}
+.demo-cell:hover{transform:translateY(-3px);box-shadow:var(--sh-soft)}
+.demo-cell .e{font-size:25px;display:block;line-height:1.1}
+.demo-cell .l{font-size:9.5px;color:var(--ink-faint);line-height:1.2;margin-top:5px;font-weight:500;display:block}
+.searchbox .mic{width:30px;height:30px;border-radius:50%;background:var(--sand);display:grid;place-content:center;color:var(--ink-soft);flex:none}
+.searchbox .mic svg{width:15px;height:15px}
+.searchbox .mic.rec{background:var(--terra);color:#fff;animation:pulse 1.1s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(229,115,115,.5)}50%{box-shadow:0 0 0 9px rgba(229,115,115,0)}}
+.fbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fbtns .btn{padding:11px 8px;font-size:13.5px}
+.fbtns .btn.act{border-color:var(--violet);color:var(--violet-deep);background:rgba(179,157,219,.12)}
+.online-wait{text-align:center;font-size:13px;color:var(--ink-faint);padding:14px 10px;line-height:1.45}
+.food-bar{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + 12px);z-index:60;display:none;
+  justify-content:center;gap:9px;padding:0 16px;pointer-events:none}
+.food-bar.on{display:flex;animation:toastIn .3s cubic-bezier(.2,1.3,.4,1) both}
+.food-bar .btn{pointer-events:auto;padding:13px 18px;font-size:14.5px;box-shadow:var(--sh-lift)}
+.cmp-wrap{overflow-x:auto;margin:0 -4px;padding:0 4px}
+table.cmp{border-collapse:separate;border-spacing:6px;width:100%;font-size:13px}
+table.cmp th{background:var(--white);border-radius:var(--r-sm);padding:10px 8px;font-weight:600;
+  font-size:12px;line-height:1.25;box-shadow:var(--sh-press);vertical-align:bottom;min-width:96px}
+table.cmp td{background:var(--white);border-radius:var(--r-sm);padding:11px 8px;text-align:center;
+  box-shadow:var(--sh-press);font-variant-numeric:tabular-nums}
+table.cmp td.rl{background:transparent;box-shadow:none;text-align:left;font-size:12px;
+  color:var(--ink-soft);font-weight:600;min-width:112px}
+table.cmp small{color:var(--ink-faint);font-size:10.5px}
+.week{background:var(--white);border-radius:var(--r-lg);padding:16px 14px 12px;box-shadow:var(--sh-soft)}
+.week-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px;padding:0 4px}
+#weekAvg{font-size:12px;color:var(--ink-faint);font-weight:600}
+#weekInfo{font-size:13px;color:var(--ink-soft);text-align:center;margin-top:8px;line-height:1.4}
+#weekInfo b{color:var(--ink);font-weight:600;text-transform:capitalize}
+/* --- Mode gastroparésie global --- */
+#gpFilters,.gp-only{display:none}
+body.gp-on #gpFilters{display:flex}
+body.gp-on .gp-only{display:inline-flex}
+.gp-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;
+  padding:3px 8px;border-radius:var(--r-pill);margin-left:6px;vertical-align:middle}
+.gp-badge.ok{background:rgba(129,199,132,.2);color:var(--sage-deep)}
+.gp-badge.mid{background:rgba(255,183,77,.24);color:#B4741C}
+.gp-badge.no{background:rgba(229,115,115,.18);color:var(--terra-deep)}
+.gp-bar{width:5px;border-radius:99px;flex:none;align-self:stretch;margin:-13px 0 -13px -14px}
+.gp-bar.ok{background:var(--sage)}.gp-bar.mid{background:#FFB74D}.gp-bar.no{background:var(--terra)}
+.sw{display:flex;align-items:center;gap:12px;background:var(--white);border-radius:var(--r-md);
+  padding:15px;box-shadow:var(--sh-press);cursor:pointer}
+.sw .swt{flex:1;min-width:0}
+.sw .swt b{display:block;font-size:15px;font-weight:600}
+.sw .swt span{font-size:12.5px;color:var(--ink-faint);line-height:1.35}
+.sw input{appearance:none;-webkit-appearance:none;width:48px;height:28px;border-radius:99px;
+  background:var(--sand);position:relative;flex:none;transition:background .2s ease;cursor:pointer;margin:0}
+.sw input::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.2);transition:transform .2s cubic-bezier(.3,1.4,.5,1)}
+.sw input:checked{background:var(--violet)}
+.sw input:checked::after{transform:translateX(20px)}
+/* --- Gastroparésie --- */
+.gp-hero{background:linear-gradient(140deg,rgba(179,157,219,.22),rgba(129,199,132,.12));
+  border-radius:var(--r-lg);padding:18px;margin-bottom:18px}
+.gp-hero h3{font-size:21px;margin-bottom:8px}
+.gp-hero p{font-size:14px;color:var(--ink-soft);line-height:1.5}
+.gp-ph{flex:none;width:154px;scroll-snap-align:start;text-align:left;background:var(--white);
+  border-radius:var(--r-md);padding:14px;box-shadow:var(--sh-press);border:1.5px solid transparent;
+  display:flex;flex-direction:column;gap:5px;transition:all .16s ease}
+.gp-ph.on{border-color:var(--violet);box-shadow:var(--sh-lift)}
+.gp-ph .e{font-size:24px;line-height:1}
+.gp-ph b{font-size:14px;font-weight:600;line-height:1.2}
+.gp-ph .s{font-size:11.5px;color:var(--ink-faint);line-height:1.3}
+.gp-ex{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.gp-ex span{font-size:12.5px;font-weight:500;padding:6px 11px;border-radius:var(--r-pill);
+  background:rgba(129,199,132,.16);color:var(--sage-deep)}
+.gp-tip{display:flex;gap:12px;background:var(--white);border-radius:var(--r-md);padding:13px 14px;
+  box-shadow:var(--sh-press);margin-bottom:8px}
+.gp-tip .e{font-size:20px;flex:none;line-height:1.2}
+.gp-tip b{font-size:14.5px;font-weight:600;display:block;line-height:1.25}
+.gp-tip p{font-size:12.5px;color:var(--ink-soft);line-height:1.4;margin-top:3px}
+.gp-cat{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);
+  font-weight:700;margin:16px 0 8px 2px}
+.gp-f{display:flex;gap:11px;align-items:flex-start;background:var(--white);border-radius:var(--r-sm);
+  padding:11px 13px;box-shadow:var(--sh-press);margin-bottom:7px}
+.gp-f b{font-size:14px;font-weight:600;display:block;line-height:1.25}
+.gp-f p{font-size:12px;color:var(--ink-faint);line-height:1.35;margin-top:2px}
+.gp-dot{width:10px;height:10px;border-radius:50%;flex:none;margin-top:5px}
+.gp-f.ok .gp-dot{background:var(--sage)}
+.gp-f.mid .gp-dot{background:#FFB74D}
+.gp-f.no .gp-dot{background:var(--terra)}
+.gp-ing{font-size:14px;padding:8px 12px;background:var(--white);border-radius:var(--r-sm);
+  margin-bottom:6px;box-shadow:var(--sh-press)}
+.gp-alert{background:rgba(229,115,115,.1);border-radius:var(--r-lg);padding:16px 18px}
+.gp-alert h4{font-family:var(--display);font-size:18px;color:var(--terra-deep);margin-bottom:8px}
+.gp-alert li{font-size:13.5px;color:var(--ink);line-height:1.45;padding-left:16px;position:relative;margin-bottom:5px}
+.gp-alert li::before{content:"";position:absolute;left:0;top:8px;width:6px;height:6px;
+  border-radius:50%;background:var(--terra)}
+#gpFeel{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.gp-feel{background:var(--white);border-radius:var(--r-sm);padding:12px 4px;box-shadow:var(--sh-press);
+  font-size:11px;font-weight:600;color:var(--ink-soft);line-height:1.2;transition:transform .14s ease}
+.gp-feel span{display:block;font-size:23px;margin-bottom:5px}
+.gp-feel:active{transform:scale(.94)}
+.bd-frame{position:absolute;left:12%;right:12%;top:34%;height:32%;border:3px solid rgba(255,255,255,.9);
+  border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+.offline{position:fixed;left:0;right:0;top:0;z-index:300;background:var(--ink);color:#fff;
+  font-size:12.5px;text-align:center;padding:8px 14px;transform:translateY(-100%);
+  transition:transform .3s ease}
+.offline.on{transform:none}
+/* --- Section Aliments --- */
+.food-top{position:sticky;top:62px;z-index:30;background:var(--cream);padding:8px 0 6px}
+.searchbox{display:flex;align-items:center;gap:11px;background:var(--white);border:1.5px solid var(--line);
+  border-radius:var(--r-pill);padding:12px 16px;box-shadow:var(--sh-press);transition:border-color .16s ease}
+.searchbox:focus-within{border-color:var(--violet);box-shadow:0 0 0 4px rgba(179,157,219,.16)}
+.searchbox>svg{width:19px;height:19px;color:var(--ink-faint);flex:none}
+.searchbox input{flex:1;min-width:0;border:0;background:none;outline:none;padding:0}
+.searchbox input::placeholder{color:var(--ink-faint)}
+.searchbox button{width:24px;height:24px;border-radius:50%;background:var(--sand);display:none;
+  place-content:center;color:var(--ink-soft);flex:none}
+.searchbox button svg{width:11px;height:11px}
+.cats{padding-top:11px;padding-bottom:4px}
+.cat{flex:none;font-size:12.5px;font-weight:600;padding:8px 13px;border-radius:var(--r-pill);
+  background:var(--white);border:1.5px solid var(--line);color:var(--ink-soft);white-space:nowrap}
+.cat.on{background:var(--violet);border-color:var(--violet);color:#fff}
+.food-bar{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:4px 2px 10px}
+#foodSort{font-size:12.5px;font-weight:600;color:var(--violet-deep)}
+.frow{background:var(--white);border-radius:var(--r-md);box-shadow:var(--sh-press);margin-bottom:8px;overflow:hidden}
+.fhead{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px}
+.fe{font-size:20px;flex:none;line-height:1}
+.fn{flex:1;min-width:0}
+.fn b{display:block;font-size:14.5px;font-weight:600;line-height:1.25}
+.fn>span{font-size:11.5px;color:var(--ink-faint)}
+.fc{flex:none;text-align:right}
+.fc b{display:block;font-family:var(--display);font-size:18px;font-weight:600;color:var(--peach-deep);
+  line-height:1;font-variant-numeric:tabular-nums}
+.fc span{font-size:9.5px;color:var(--ink-faint);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.fdet{border-top:1px solid var(--line);padding:14px;background:#FDFCF7;display:none;animation:rise .25s ease both}
+.frow.open .fdet{display:block}
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;margin-bottom:11px}
+.fgrid div{background:var(--white);border-radius:var(--r-sm);padding:10px 4px;box-shadow:var(--sh-press)}
+.fgrid b{display:block;font-family:var(--display);font-size:19px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.fgrid span{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin-top:5px;display:block}
+.fmeta{font-size:12px;color:var(--ink-faint);text-align:center;margin-bottom:12px;line-height:1.4}
+.fport{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.fport .lbl{font-size:13.5px;color:var(--ink-soft);font-weight:500}
+.thumbs{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.thumbs img{width:44px;height:44px;object-fit:cover;border-radius:11px;box-shadow:var(--sh-press);border:2px solid #fff}
+.thumbs-n{font-size:12px;color:var(--ink-faint);font-weight:500;margin-left:3px}
+.shot{position:relative;border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--sh-soft);aspect-ratio:4/3;background:var(--sand)}
+.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.shot .fake{
+  width:100%;height:100%;display:grid;place-content:center;text-align:center;gap:6px;
+  background:linear-gradient(140deg,#FFE9DF,#F4EEE1 60%,#E8F1E4);
+}
+.shot .fake .e{font-size:58px}
+.shot .fake span{font-size:13px;color:var(--ink-soft);font-weight:500}
+.shot-retake{
+  position:absolute;right:10px;bottom:10px;background:rgba(255,255,255,.94);
+  padding:8px 13px;border-radius:var(--r-pill);font-size:13px;font-weight:600;
+  box-shadow:var(--sh-press);display:flex;align-items:center;gap:6px;
+}
+.shot-retake svg{width:14px;height:14px}
+
+.scan{display:flex;flex-direction:column;align-items:center;gap:14px;padding:26px 0}
+.scan-ring{
+  width:52px;height:52px;border-radius:50%;
+  border:4px solid rgba(179,157,219,.25);border-top-color:var(--violet);
+  animation:spin .9s linear infinite;
+}
+.scan-step{font-size:15px;font-weight:500;color:var(--ink-soft);text-align:center;min-height:22px}
+
+/* Items détectés */
+.item{
+  background:var(--white);border-radius:var(--r-md);padding:13px 14px;
+  box-shadow:var(--sh-press);margin-bottom:10px;
+  display:flex;align-items:center;gap:12px;animation:rise .3s ease both;
+}
+.item-ico{font-size:25px;line-height:1;flex:none}
+.item-body{flex:1;min-width:0}
+.item-name{font-weight:600;font-size:14.5px}
+.item-meta{font-size:12px;color:var(--ink-faint);margin-top:2px;font-variant-numeric:tabular-nums}
+.step{display:flex;align-items:center;gap:4px;flex:none;background:var(--sand);border-radius:var(--r-pill);padding:3px}
+.step button{
+  width:32px;height:32px;border-radius:50%;background:var(--white);
+  display:grid;place-content:center;color:var(--ink-soft);box-shadow:var(--sh-press);
+  font-weight:700;font-size:17px;line-height:1;transition:transform .12s ease,color .12s ease;
+}
+.step button:hover{color:var(--peach-deep)}
+.step button:active{transform:scale(.88)}
+.step .qty{
+  min-width:52px;text-align:center;font-size:12px;font-weight:600;line-height:1.15;
+  font-variant-numeric:tabular-nums;color:var(--ink);
+}
+.step .qty small{display:block;font-size:10px;font-weight:500;color:var(--ink-faint);letter-spacing:.02em}
+
+.recap{
+  background:linear-gradient(140deg,#fff,#FDF7F2);border-radius:var(--r-lg);
+  padding:18px;box-shadow:var(--sh-soft);margin:16px 0;
+}
+.recap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center}
+.recap-cell .v{font-family:var(--display);font-size:29px;font-weight:600;line-height:1;letter-spacing:-.02em}
+.recap-cell .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin-top:6px}
+.recap-cell .h{font-size:11px;color:var(--ink-faint);margin-top:3px}
+.recap-bar{height:8px;border-radius:99px;background:var(--sand);margin-top:16px;overflow:hidden;display:flex}
+.recap-bar i{display:block;height:100%;transition:width .5s ease}
+
+.glycia-note{
+  display:flex;gap:11px;align-items:flex-start;
+  background:rgba(179,157,219,.13);border-radius:var(--r-md);padding:14px;
+  font-size:14px;line-height:1.45;color:var(--ink);
+}
+.glycia-note .who{font-weight:600;color:var(--violet-deep)}
+
+/* --- Recettes --- */
+.field{
+  width:100%;background:var(--white);border:1.5px solid var(--line);border-radius:var(--r-md);
+  padding:14px 15px;box-shadow:var(--sh-press);resize:vertical;line-height:1.45;
+  transition:border-color .16s ease;
+}
+.field:focus{outline:none;border-color:var(--violet);box-shadow:0 0 0 4px rgba(179,157,219,.16)}
+.field::placeholder{color:var(--ink-faint)}
+.suggest{display:flex;flex-wrap:wrap;gap:7px;margin:11px 0 4px}
+.suggest button{
+  font-size:12.5px;font-weight:500;padding:7px 12px;border-radius:var(--r-pill);
+  background:var(--white);border:1.5px solid var(--line);color:var(--ink-soft);
+  transition:all .15s ease;
+}
+.suggest button:hover{border-color:var(--sage);color:var(--sage-deep);background:rgba(129,199,132,.08)}
+
+.recipe{animation:rise .4s ease both}
+.recipe-hero{
+  background:linear-gradient(140deg, rgba(129,199,132,.2), rgba(129,199,132,.07));
+  border-radius:var(--r-lg);padding:18px;margin-bottom:14px;
+}
+.recipe-hero h3{font-size:22px;line-height:1.12;margin-bottom:8px}
+.recipe-hero .chips{margin-top:12px}
+.tick{
+  display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:var(--r-sm);
+  background:var(--white);box-shadow:var(--sh-press);margin-bottom:8px;width:100%;text-align:left;
+  transition:opacity .18s ease;
+}
+.tick .box{
+  width:23px;height:23px;border-radius:8px;border:2px solid var(--line);flex:none;
+  display:grid;place-content:center;color:#fff;transition:all .18s ease;
+}
+.tick .box svg{width:13px;height:13px;opacity:0;transform:scale(.5);transition:all .18s ease}
+.tick.on .box{background:var(--sage);border-color:var(--sage)}
+.tick.on .box svg{opacity:1;transform:none}
+.tick.on .tk-name{text-decoration:line-through;color:var(--ink-faint)}
+.tk-name{font-size:14.5px;font-weight:500;flex:1}
+.tk-qty{font-size:13px;color:var(--ink-faint);font-variant-numeric:tabular-nums;flex:none}
+
+.stepline{display:flex;gap:13px;margin-bottom:13px;align-items:flex-start}
+.stepline .n{
+  width:29px;height:29px;border-radius:50%;background:var(--sage);color:#fff;flex:none;
+  display:grid;place-content:center;font-size:13.5px;font-weight:700;
+}
+.stepline .txt{flex:1;font-size:14.5px;line-height:1.45}
+.stepline .t{
+  display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+  color:var(--sage-deep);background:rgba(129,199,132,.16);padding:3px 9px;border-radius:var(--r-pill);
+  margin-top:6px;
+}
+.stepline .t svg{width:12px;height:12px}
+
+/* --- Scanner menu --- */
+.dish{
+  background:var(--white);border-radius:var(--r-md);padding:13px 14px;box-shadow:var(--sh-press);
+  margin-bottom:9px;display:flex;align-items:center;gap:11px;animation:rise .3s ease both;
+}
+.dish-body{flex:1;min-width:0}
+.dish-name{font-weight:600;font-size:14.5px;line-height:1.25}
+.dish-tip{font-size:12.5px;color:var(--ink-soft);margin-top:3px;line-height:1.35}
+.verdict{
+  width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-content:center;font-size:19px;
+}
+.dish-add{
+  flex:none;width:34px;height:34px;border-radius:50%;background:rgba(255,138,101,.14);
+  color:var(--peach-deep);display:grid;place-content:center;
+}
+.dish-add:hover{background:var(--peach);color:#fff}
+.dish-add svg{width:16px;height:16px}
+
+/* --- Part du gâteau --- */
+.slider-row{margin-bottom:18px}
+.slider-row label{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:500;margin-bottom:9px}
+.slider-row label b{font-family:var(--display);font-size:19px;color:var(--violet-deep);font-variant-numeric:tabular-nums}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:99px;
+  background:var(--sand);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--violet);
+  box-shadow:0 3px 10px rgba(179,157,219,.5);cursor:pointer;border:3px solid #fff;
+}
+input[type=range]::-moz-range-thumb{
+  width:22px;height:22px;border-radius:50%;background:var(--violet);border:3px solid #fff;
+  box-shadow:0 3px 10px rgba(179,157,219,.5);cursor:pointer;
+}
+.cake{
+  position:relative;width:150px;height:150px;margin:4px auto 16px;
+}
+.cake svg{width:100%;height:100%;transform:rotate(-90deg)}
+.cake-mid{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.cake-mid .v{font-family:var(--display);font-size:33px;font-weight:600;line-height:1;letter-spacing:-.02em}
+.cake-mid .k{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin-top:5px}
+.preset-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.preset-row button{
+  font-size:12.5px;font-weight:500;padding:7px 12px;border-radius:var(--r-pill);
+  background:var(--white);border:1.5px solid var(--line);color:var(--ink-soft);
+}
+.preset-row button.on{border-color:var(--violet);background:rgba(179,157,219,.14);color:var(--violet-deep);font-weight:600}
+
+/* --- Toast --- */
+.toast-zone{
+  position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + 14px);z-index:200;
+  display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding:0 16px;
+}
+.toast{
+  background:var(--ink);color:#fff;padding:13px 18px;border-radius:var(--r-pill);
+  font-size:14px;font-weight:500;box-shadow:var(--sh-lift);
+  display:flex;align-items:center;gap:9px;max-width:100%;
+  animation:toastIn .32s cubic-bezier(.2,1.3,.4,1) both;
+}
+.toast svg{width:17px;height:17px;flex:none;color:var(--sage)}
+.toast.out{animation:toastOut .28s ease both}
+@keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(10px) scale(.96)}}
+
+/* --- Divers --- */
+.foot-note{
+  margin:30px 0 6px;font-size:11.5px;color:var(--ink-faint);text-align:center;line-height:1.55;
+  padding:0 10px;
+}
+.view{display:none}
+.view.on{display:block}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ ICÔNES SVG ============ -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></symbol>
+  <symbol id="i-chef" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21h12"/><path d="M5 15h14"/><path d="M6 15V9a6 6 0 0 1 .6-2.6A3.5 3.5 0 0 1 12 5a3.5 3.5 0 0 1 5.4 1.4A6 6 0 0 1 18 9v6"/><path d="M6 18h12"/></symbol>
+  <symbol id="i-tools" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0 5 5L15 16l-3 3-4-4 3-3z"/><path d="m6 18 1.5 1.5"/><path d="M3 21 8 16"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r="1.3" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5.5 5.5L20 7"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4" height="15" rx="1.4"/><rect x="14" y="4.5" width="4" height="15" rx="1.4"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></symbol>
+  <symbol id="i-menu-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+  <symbol id="i-cake" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l7.8 4.5"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.6-7-9.4A4 4 0 0 1 12 8a4 4 0 0 1 7 2.6C19 15.4 12 20 12 20z"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5 13.8 9 20 11l-6.2 2L12 19.5 10.2 13 4 11l6.2-2z"/><path d="M18.5 3 19.3 5.7 22 6.5l-2.7.8L18.5 10l-.8-2.7L15 6.5l2.7-.8z" opacity=".65"/></symbol>
+  <symbol id="i-fork" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a2.5 2.5 0 0 0 5 0V3"/><path d="M8.5 11v10"/><path d="M17 3c-1.6 1.2-2.5 3-2.5 5.5S15.4 12.5 17 13v8"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></symbol>
+</svg>
+
+<div class="app">
+
+  <!-- ============ HEADER ============ -->
+  <header class="top">
+    <div class="brand">
+      <div class="ava sm" aria-hidden="true"><div class="ava-glow"></div><div id="avaMini"></div></div>
+      <div class="brand-txt">
+        <div class="brand-name">Glyc<em>IA</em></div>
+        <div class="brand-sub" id="todayLabel">Aujourd'hui</div>
+      </div>
+    </div>
+    <button class="sos" id="btnSos" aria-label="Ouvrir le secours hypoglycémie">
+      <svg><use href="#i-bolt"/></svg> SOS Hypo
+    </button>
+  </header>
+
+  <!-- ============ VUE : AUJOURD'HUI ============ -->
+  <section class="view on" id="v-home">
+
+    <div class="mascot-row">
+      <div class="ava" aria-hidden="true"><div class="ava-glow"></div><div id="avaMain"></div></div>
+      <div class="bubble" id="bubble" aria-live="polite">Coucou ! Prêt pour ton repas ? 🍽️</div>
+    </div>
+
+    <!-- Signature : l'assiette du jour -->
+    <div class="plate-card">
+      <div class="plate" role="img" aria-label="Assiette du jour" id="plateRoot">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="#F2EEE4" stroke-width="13"/>
+          <circle cx="60" cy="60" r="50" fill="none" stroke="#81C784" stroke-width="13"
+                  stroke-linecap="round" class="plate-ring" id="plateRing"
+                  stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+          <circle cx="60" cy="60" r="34" fill="none" stroke="#F7F4EC" stroke-width="1.5"/>
+        </svg>
+        <div class="plate-mid">
+          <div class="plate-num" id="totalCarbs">0</div>
+          <div class="plate-unit">g glucides</div>
+        </div>
+      </div>
+      <div class="plate-side">
+        <div class="eyebrow">Ta journée</div>
+        <h2 id="dayTitle">On démarre en douceur</h2>
+        <p class="plate-note" id="dayNote">Repère indicatif : 180 g. Ce n'est pas une note, juste une boussole.</p>
+        <div class="chips">
+          <span class="chip" id="chipMeals">0 repas</span>
+          <span class="chip sage" id="chipIg">IG moyen —</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-block btn-lg cta-shoot" id="btnShoot">
+      <svg><use href="#i-cam"/></svg>
+      <span class="cta-txt">Analyser mon assiette
+        <span class="cta-sub">Une photo, et GlycIA fait le calcul</span>
+      </span>
+    </button>
+
+    <!-- Favoris -->
+    <div class="sect">
+      <div class="sect-head">
+        <h3>Tes repas en 1 clic</h3>
+        <span class="link">Glisse pour voir →</span>
+      </div>
+      <div class="rail" id="favRail"></div>
+    </div>
+
+    <!-- Raccourcis outils -->
+    <div class="sect">
+      <div class="sect-head"><h3>Petits coups de pouce</h3></div>
+      <div class="tools">
+        <button class="tool" data-open="recipe">
+          <span class="tool-ico bg-sage"><svg><use href="#i-chef"/></svg></span>
+          <h4>Idée recette</h4>
+          <p>Une envie, des restes → une recette à IG bas</p>
+        </button>
+        <button class="tool" data-open="menu">
+          <span class="tool-ico bg-violet"><svg><use href="#i-menu-card"/></svg></span>
+          <h4>Carte du resto</h4>
+          <p>Colle le menu, GlycIA décrypte</p>
+        </button>
+        <button class="tool" data-open="cake">
+          <span class="tool-ico bg-peach"><svg><use href="#i-cake"/></svg></span>
+          <h4>Part du gâteau</h4>
+          <p>Diviser un plat familial sans se tromper</p>
+        </button>
+        <button class="tool" data-open="sos">
+          <span class="tool-ico bg-terra"><svg><use href="#i-bolt"/></svg></span>
+          <h4>SOS Hypo</h4>
+          <p>La règle des 15 g + minuteur 15 min</p>
+        </button>
+        <button class="tool" id="goGastro2">
+          <span class="tool-ico bg-violet">🌀</span>
+          <h4>Gastroparésie</h4>
+          <p>L'estomac lent : textures et aliments qui passent</p>
+        </button>
+        <button class="tool" id="btnScan2">
+          <span class="tool-ico bg-sage">📷</span>
+          <h4>Code-barres</h4>
+          <p>Scanne un paquet, obtiens ses glucides</p>
+        </button>
+      </div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Tes 7 derniers jours</h3></div>
+      <div class="week">
+        <div class="week-head"><span class="eyebrow">Glucides par jour</span><span id="weekAvg"></span></div>
+        <div id="weekChart"></div>
+        <p id="weekInfo"></p>
+      </div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head">
+        <h3>Le journal du jour</h3>
+        <span class="link" id="journalTotal">0 g</span>
+      </div>
+      <div id="timeline"></div>
+    </div>
+
+    <p class="foot-note">
+      GlycIA est une démonstration. Les glucides, IG et CG affichés sont des <strong>estimations</strong> et ne remplacent
+      ni ta glycémie mesurée, ni les conseils de ton équipe soignante.
+    </p>
+  </section>
+
+  <!-- ============ VUE : RECETTES ============ -->
+  <section class="view" id="v-recipe">
+    <div class="sect" style="margin-top:6px">
+      <div class="sect-head"><h3>Qu'est-ce qui te ferait plaisir ?</h3></div>
+      <textarea class="field" id="recipeInput" rows="3"
+        placeholder="Une envie, ou ce qui traîne dans le frigo : « courgettes, œufs, feta » ou « quelque chose de réconfortant »"></textarea>
+      <div class="suggest" id="recipeSuggest"></div>
+      <button class="btn btn-sage btn-block" id="btnRecipe" style="margin-top:10px">
+        <svg><use href="#i-sparkle"/></svg> Trouve-moi une recette
+      </button>
+    </div>
+    <div id="recipeOut" class="sect"></div>
+  </section>
+
+  <!-- ============ VUE : ALIMENTS ============ -->
+  <section class="view" id="v-food">
+    <div class="food-top">
+      <div class="searchbox">
+        <svg><use href="#i-search"/></svg>
+        <input id="foodQ" type="search" autocomplete="off" placeholder="Big Mac, quenelle, banane, tacos…" aria-label="Chercher un aliment">
+        <button id="foodClear" aria-label="Effacer"><svg><use href="#i-x"/></svg></button>
+        <button class="mic" id="foodMic" aria-label="Recherche vocale"><svg><use href="#i-mic"/></svg></button>
+      </div>
+      <div class="rail cats" id="foodCats"></div>
+      <div class="rail cats" id="gpFilters"></div>
+    </div>
+    <div class="food-bar">
+      <span class="eyebrow" id="foodCount"></span>
+      <button id="foodSort">A → Z</button>
+    </div>
+    <div id="foodList"></div>
+    <p class="foot-note">
+      Valeurs moyennes de composition (glucides, IG, calories) pour 100 g et par portion courante.
+      Recettes maison, marques et tailles de portion font varier ces chiffres : sers-t'en comme d'un ordre de grandeur.
+    </p>
+  </section>
+
+  <!-- ============ VUE : GASTROPARÉSIE ============ -->
+  <section class="view" id="v-gastro">
+    <div class="gp-hero">
+      <h3>Quand l'estomac prend son temps</h3>
+      <p>La gastroparésie ralentit la vidange de l'estomac. C'est la deuxième complication digestive
+      du diabète ancien : les nerfs qui commandent l'estomac finissent par mal transmettre.
+      Résultat, on est rassasié en trois bouchées, ça pèse des heures, et l'absorption des glucides
+      devient imprévisible — ce qui rend la glycémie difficile à lire.</p>
+      <p style="margin-top:10px"><b style="color:var(--violet-deep)">Ce qu'on peut faire :</b> jouer sur la
+      texture, la taille des prises et la teneur en graisses. Ça ne guérit pas, mais ça change beaucoup de journées.</p>
+    </div>
+
+    <label class="sw" style="margin-bottom:14px">
+        <span class="tool-ico bg-violet" style="width:42px;height:42px;border-radius:13px;display:grid;place-content:center">🌀</span>
+        <span class="swt"><b>Mode gastroparésie</b><span>Filtre tous les aliments et les recettes selon ce que ton estomac tolère</span></span>
+        <input type="checkbox" data-gpsw role="switch" aria-checked="false" aria-label="Activer le mode gastroparésie">
+      </label>
+
+    <div class="sect" style="margin-top:0">
+      <div class="sect-head"><h3>Où tu en es aujourd'hui</h3></div>
+      <div class="rail" id="gpPhases"></div>
+      <div class="card" id="gpPhaseCard" style="margin-top:4px"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Les réflexes qui changent tout</h3></div>
+      <div id="gpTips"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Qu'est-ce qui passe ?</h3><span class="link" id="gpCount"></span></div>
+      <div class="searchbox" style="margin-bottom:10px">
+        <svg><use href="#i-search"/></svg>
+        <input id="gpQ" type="search" autocomplete="off" placeholder="Pain, carotte, fromage…" aria-label="Chercher un aliment toléré">
+      </div>
+      <div class="rail cats" id="gpLvls"></div>
+      <div id="gpFoods"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Recettes qui passent</h3></div>
+      <div id="gpRecipes"></div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Ton journal de tolérance</h3></div>
+      <div class="card">
+        <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45;margin-bottom:12px">
+          Comment s'est passé ton dernier repas ? Un tap, et au bout de deux semaines tu auras
+          ta propre liste — bien plus fiable que n'importe quel tableau général.</p>
+        <div id="gpFeel"></div>
+        <div id="gpLog" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <div class="sect">
+      <div class="gp-alert">
+        <h4>Quand il faut appeler</h4>
+        <ul id="gpAlert"></ul>
+        <p style="font-size:13px;color:var(--ink-soft);margin-top:10px;line-height:1.45">
+          En cas de vomissements incoercibles ou de malaise : le <b>15</b> (ou le 112).
+        </p>
+      </div>
+    </div>
+
+    <p class="foot-note">
+      Ces repères sont ceux, consensuels, du régime gastroparésie : fractionner, réduire fibres et graisses,
+      adapter la texture. Ils ne remplacent ni un diététicien ni ton gastro-entérologue.
+      <b>Le point critique : avec une vidange imprévisible, le moment de ton traitement doit être revu
+      avec ton médecin — jamais ajusté seul.</b>
+    </p>
+  </section>
+
+  <!-- ============ VUE : OUTILS ============ -->
+  <section class="view" id="v-tools">
+    <div class="sect" style="margin-top:6px">
+      <label class="sw" style="margin-bottom:14px">
+        <span class="tool-ico bg-violet" style="width:42px;height:42px;border-radius:13px;display:grid;place-content:center">🌀</span>
+        <span class="swt"><b>Mode gastroparésie</b><span>Filtre tous les aliments et les recettes selon ce que ton estomac tolère</span></span>
+        <input type="checkbox" data-gpsw role="switch" aria-checked="false" aria-label="Activer le mode gastroparésie">
+      </label>
+      <div class="sect-head"><h3>La boîte à outils</h3></div>
+      <div class="tools">
+        <button class="tool" data-open="menu">
+          <span class="tool-ico bg-violet"><svg><use href="#i-menu-card"/></svg></span>
+          <h4>Scanner la carte</h4>
+          <p>Colle un menu de resto, obtiens les glucides estimés plat par plat</p>
+        </button>
+        <button class="tool" data-open="cake">
+          <span class="tool-ico bg-peach"><svg><use href="#i-cake"/></svg></span>
+          <h4>Part du gâteau</h4>
+          <p>Un plat, X parts, ta part → tes glucides</p>
+        </button>
+        <button class="tool" data-open="sos">
+          <span class="tool-ico bg-terra"><svg><use href="#i-bolt"/></svg></span>
+          <h4>SOS Hypo</h4>
+          <p>15 g de sucre rapide, 15 minutes de pause, on recontrôle</p>
+        </button>
+        <button class="tool" data-open="shoot">
+          <span class="tool-ico bg-peach"><svg><use href="#i-cam"/></svg></span>
+          <h4>Analyser une assiette</h4>
+          <p>Photo, portions ajustables, glucides et IG</p>
+        </button>
+        <button class="tool" id="goGastro">
+          <span class="tool-ico bg-violet">🌀</span>
+          <h4>Gastroparésie</h4>
+          <p>Textures, aliments tolérés, recettes et journal</p>
+        </button>
+        <button class="tool" id="btnSet">
+          <span class="tool-ico bg-violet">⚙️</span>
+          <h4>Réglages</h4>
+          <p>Clé API Claude, données enregistrées</p>
+        </button>
+        <button class="tool" id="btnScan">
+          <span class="tool-ico bg-sage">📷</span>
+          <h4>Scanner un code-barres</h4>
+          <p>Le produit exact et ses glucides, depuis le paquet</p>
+        </button>
+      </div>
+    </div>
+
+    <div class="sect">
+      <div class="sect-head"><h3>Mémo IG</h3></div>
+      <div class="card">
+        <p style="font-size:14px;color:var(--ink-soft);line-height:1.55">
+          L'<b style="color:var(--ink)">indice glycémique</b> dit à quelle vitesse un aliment fait monter la glycémie.
+          La <b style="color:var(--ink)">charge glycémique</b> tient compte de la quantité réellement mangée — c'est elle
+          qui compte le plus dans une assiette.
+        </p>
+        <div class="chips" style="margin-top:14px">
+          <span class="chip sage">IG bas — sous 55</span>
+          <span class="chip peach">IG moyen — 56 à 69</span>
+          <span class="chip" style="background:rgba(229,115,115,.16);color:var(--terra-deep);font-weight:600">IG élevé — 70 et +</span>
+        </div>
+        <p style="font-size:13px;color:var(--ink-faint);margin-top:14px;line-height:1.5">
+          Astuce de GlycIA : des fibres, des protéines ou un filet d'huile d'olive dans le même repas font baisser
+          l'IG de l'ensemble. Le dessert passe mieux après une bonne assiette de légumes qu'à jeun.
+        </p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ============ NAV ============ -->
+<nav class="nav" role="tablist" aria-label="Navigation principale">
+  <div class="nav-in">
+    <button class="nav-btn" role="tab" aria-selected="true" data-tab="home">
+      <svg><use href="#i-home"/></svg> Aujourd'hui
+    </button>
+    <button class="nav-btn" role="tab" aria-selected="false" data-tab="food">
+      <svg><use href="#i-search"/></svg> Aliments
+    </button>
+    <button class="nav-fab" id="fabShoot" aria-label="Analyser mon assiette">
+      <svg><use href="#i-cam"/></svg>
+    </button>
+    <button class="nav-btn" role="tab" aria-selected="false" data-tab="recipe">
+      <svg><use href="#i-chef"/></svg> Recettes
+    </button>
+    <button class="nav-btn" role="tab" aria-selected="false" data-tab="tools">
+      <svg><use href="#i-tools"/></svg> Outils
+    </button>
+  </div>
+</nav>
+
+<div class="food-bar" id="foodBar"></div>
+<div class="toast-zone" id="toastZone" aria-live="polite"></div>
+
+<!-- ============ MODALE : SOS HYPO ============ -->
+<div class="veil" id="m-sos" role="dialog" aria-modal="true" aria-labelledby="sosTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1">
+        <h2 id="sosTitle">On gère, tranquillement</h2>
+        <p>Tu te sens tremblant, la tête qui tourne ? Voilà le réflexe.</p>
+      </div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+
+    <div class="sos-rule">
+      <h4>La règle des 15</h4>
+      <p>15 g de sucre rapide, puis 15 minutes de pause avant de recontrôler ta glycémie.</p>
+      <div class="sos-grid">
+        <div class="sos-opt"><span class="e">🍬</span><div class="q">3 morceaux</div><div class="l">de sucre</div></div>
+        <div class="sos-opt"><span class="e">🧃</span><div class="q">15 cl</div><div class="l">de jus de fruit</div></div>
+        <div class="sos-opt"><span class="e">🍯</span><div class="q">1 c. à soupe</div><div class="l">de miel</div></div>
+      </div>
+    </div>
+
+    <div class="timer-wrap">
+      <div class="timer-ring">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="#F2EEE4" stroke-width="10"/>
+          <circle cx="60" cy="60" r="52" fill="none" stroke="#E57373" stroke-width="10"
+                  stroke-linecap="round" id="timerRing"
+                  stroke-dasharray="326.73" stroke-dashoffset="0"/>
+        </svg>
+        <div class="timer-mid">
+          <div class="timer-val" id="timerVal">15:00</div>
+          <div class="timer-lbl">de pause</div>
+        </div>
+      </div>
+      <div class="timer-ctl">
+        <button class="btn btn-terra" id="timerToggle"><svg><use href="#i-play"/></svg> Lancer</button>
+        <button class="btn btn-ghost" id="timerReset"><svg><use href="#i-reset"/></svg> Réinitialiser</button>
+      </div>
+      <p class="timer-msg" id="timerMsg">Prends ton sucre, installe-toi confortablement, puis lance le minuteur.</p>
+    </div>
+
+    <p class="foot-note" style="margin-top:16px">
+      Si tu ne remontes pas après 2 resucrages, si tu ne peux pas avaler ou si quelqu'un perd connaissance :
+      appelle le <strong>15</strong> (ou le 112). Ce minuteur est un pense-bête, pas un dispositif médical.
+    </p>
+  </div>
+</div>
+
+<!-- ============ MODALE : ANALYSE PHOTO ============ -->
+<div class="veil" id="m-shoot" role="dialog" aria-modal="true" aria-labelledby="shootTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1">
+        <h2 id="shootTitle">Montre-moi ton assiette</h2>
+        <p>Une photo suffit. Tu ajusteras les portions juste après.</p>
+      </div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="shootBody"></div>
+  </div>
+</div>
+
+<!-- ============ MODALE : SCANNER CARTE ============ -->
+<div class="veil" id="m-menu" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1">
+        <h2 id="menuTitle">La carte, décryptée</h2>
+        <p>Colle ou tape les plats du menu, un par ligne.</p>
+      </div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <input class="field" id="menuPlace" placeholder="Nom du restaurant et ville (facultatif)" style="margin-bottom:10px">
+    <textarea class="field" id="menuInput" rows="5"
+      placeholder="Risotto aux champignons&#10;Tartare de bœuf, frites maison&#10;Salade de chèvre chaud&#10;Tiramisu"></textarea>
+    <div class="suggest">
+      <button id="menuDemo">Charger un menu d'exemple</button>
+      <button id="btnResto">📍 Restos autour de moi</button>
+    </div>
+    <div id="restoOut"></div>
+    <button class="btn btn-violet btn-block" id="btnMenuScan" style="margin-top:10px">
+      <svg><use href="#i-sparkle"/></svg> Décrypter la carte
+    </button>
+    <div id="menuOut" style="margin-top:18px"></div>
+  </div>
+</div>
+
+<!-- ============ MODALE : PART DU GÂTEAU ============ -->
+<div class="veil" id="m-cake" role="dialog" aria-modal="true" aria-labelledby="cakeTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1">
+        <h2 id="cakeTitle">Ta part, sans calcul de tête</h2>
+        <p>Un plat à partager ? On répartit les glucides.</p>
+      </div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:8px">Le plat entier</div>
+      <div class="preset-row" id="cakePresets"></div>
+
+      <div class="slider-row" style="margin-top:18px">
+        <label for="cakeTotal">Glucides du plat entier <b><span id="cakeTotalV">240</span> g</b></label>
+        <input type="range" id="cakeTotal" min="20" max="600" step="5" value="240">
+      </div>
+      <div class="slider-row">
+        <label for="cakeParts">Nombre de parts <b id="cakePartsV">8</b></label>
+        <input type="range" id="cakeParts" min="2" max="16" step="1" value="8">
+      </div>
+      <div class="slider-row" style="margin-bottom:6px">
+        <label for="cakeMine">Ta part <b id="cakeMineV">1</b></label>
+        <input type="range" id="cakeMine" min="1" max="8" step="1" value="1">
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;text-align:center">
+      <div class="cake">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="46" fill="none" stroke="#F2EEE4" stroke-width="26"/>
+          <circle cx="60" cy="60" r="46" fill="none" stroke="#FF8A65" stroke-width="26"
+                  id="cakeArc" stroke-dasharray="289.03" stroke-dashoffset="253"/>
+        </svg>
+        <div class="cake-mid">
+          <div class="v" id="cakeResult">30 g</div>
+          <div class="k">pour toi</div>
+        </div>
+      </div>
+      <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45" id="cakeNote"></p>
+      <button class="btn btn-primary btn-block" id="cakeAdd" style="margin-top:14px">
+        <svg><use href="#i-plus"/></svg> Ajouter au journal
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALE : RÉGLAGES ============ -->
+<div class="veil" id="m-set" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1"><h2 id="setTitle">Réglages</h2>
+        <p>Clé API et données locales.</p></div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="setBody"></div>
+  </div>
+</div>
+
+<!-- ============ MODALE : CODE-BARRES ============ -->
+<div class="veil" id="m-scan" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1"><h2 id="scanTitle">Scanner le paquet</h2>
+        <p>Le produit exact, avec ses vraies valeurs.</p></div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="scanBody"></div>
+  </div>
+</div>
+
+<!-- ============ MODALE : COMPARATEUR ============ -->
+<div class="veil" id="m-cmp" role="dialog" aria-modal="true" aria-labelledby="cmpTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1"><h2 id="cmpTitle">Face à face</h2>
+        <p>Même logique, chiffres côte à côte.</p></div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="cmpBody"></div>
+  </div>
+</div>
+
+<!-- ============ MODALE : PLATEAU ============ -->
+<div class="veil" id="m-tray" role="dialog" aria-modal="true" aria-labelledby="trayTitle">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head">
+      <div style="flex:1"><h2 id="trayTitle">Ton plateau</h2>
+        <p>Empile, ajuste, enregistre d'un coup.</p></div>
+      <button class="x" data-close aria-label="Fermer"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="trayBody"></div>
+  </div>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

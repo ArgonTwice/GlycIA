@@ -1,0 +1,13 @@
+#!/bin/sh
+# GlycIA — standalone.html ne doit jamais diverger de ses sources.
+# Actif après : git config core.hooksPath .githooks
+
+if git diff --cached --name-only | grep -qE '^(index\.html|app\.js|db\.json|build\.mjs)$'; then
+  command -v node >/dev/null 2>&1 || { echo "pre-commit : node introuvable, contrôle ignoré"; exit 0; }
+  node build.mjs || exit 1
+  if [ -n "$(git status --porcelain standalone.html)" ]; then
+    git add standalone.html
+    echo "pre-commit : standalone.html régénéré et ajouté au commit"
+  fi
+fi
+exit 0

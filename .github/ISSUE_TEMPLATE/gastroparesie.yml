@@ -1,0 +1,28 @@
+name: Retour gastroparésie
+description: Un classement de tolérance qui ne colle pas au vécu
+labels: [gastroparésie]
+body:
+  - type: markdown
+    attributes:
+      value: "Ton expérience compte plus que les règles générales du moteur. Merci de la partager."
+  - type: input
+    id: aliment
+    attributes: { label: Aliment, placeholder: "Purée de pomme de terre" }
+    validations: { required: true }
+  - type: dropdown
+    id: affiche
+    attributes:
+      label: Classement affiché
+      options: ["✅ Bien toléré", "⚠️ Avec prudence", "⛔ À éviter"]
+    validations: { required: true }
+  - type: dropdown
+    id: reel
+    attributes:
+      label: Ce que tu observes
+      options: ["✅ Passe bien", "⚠️ Variable", "⛔ Ne passe pas"]
+    validations: { required: true }
+  - type: textarea
+    id: contexte
+    attributes:
+      label: Contexte
+      description: Phase, quantité, préparation, moment de la journée. Ne partage aucune donnée médicale que tu ne souhaites pas rendre publique.

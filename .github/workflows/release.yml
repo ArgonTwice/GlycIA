@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Contrôle et régénération
+        run: |
+          node --check app.js
+          node --check sw.js
+          node --check worker/worker.js
+          node -e "JSON.parse(require('fs').readFileSync('db.json','utf8'))"
+          node build.mjs
+
+      - name: Archive de la version modulaire
+        run: |
+          mkdir -p dist
+          cp index.html app.js db.json sw.js icon.svg manifest.webmanifest dist/
+          cd dist && zip -qr ../glycia-modulaire.zip . && cd ..
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: GlycIA ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            standalone.html
+            glycia-modulaire.zip
+          body: |
+            ## Installer
+
+            **Sans rien installer** — télécharge `standalone.html` et ouvre-le. Tout est dedans.
+
+            **Version modulaire** — `glycia-modulaire.zip`, à servir depuis un dossier
+            (`python3 -m http.server`) ou n'importe quel hébergement statique.
+
+            **En ligne** — https://argontwice.github.io/GlycIA/
+
+            ---
+
+            Les fonctions IA nécessitent une configuration (⚙️ Réglages).
+            Sans elle, les 1042 aliments, les calculs, les recettes, le mode gastroparésie
+            et le SOS hypo fonctionnent, hors ligne compris.
+
+            GlycIA n'est pas un dispositif médical. Les valeurs affichées sont des estimations.

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Urgence médicale
+    url: https://www.sante.fr
+    about: "GlycIA n'est pas un dispositif médical. En cas d'hypoglycémie sévère ou de malaise : 15 ou 112."

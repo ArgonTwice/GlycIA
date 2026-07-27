@@ -1,0 +1,21 @@
+name: Bug
+description: Quelque chose ne fonctionne pas
+labels: [bug]
+body:
+  - type: textarea
+    id: quoi
+    attributes: { label: Ce qui se passe, description: "Et ce que tu attendais à la place." }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes: { label: Pour reproduire, placeholder: "1. Ouvrir…\n2. Toucher…\n3. …" }
+    validations: { required: true }
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version utilisée
+      options: ["En ligne (GitHub Pages)", "standalone.html", "Servie en local", "Installée en PWA"]
+    validations: { required: true }
+  - type: input
+    id: nav
+    attributes: { label: Navigateur et appareil, placeholder: "Chrome Android 14 / Safari iOS 18" }

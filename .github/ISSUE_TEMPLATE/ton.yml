@@ -1,0 +1,14 @@
+name: Une phrase qui culpabilise
+description: Un texte de l'app qui met mal à l'aise
+labels: [ton]
+body:
+  - type: markdown
+    attributes:
+      value: "Zéro culpabilité est le principe fondateur de l'app. Si une phrase le trahit, c'est un bug."
+  - type: textarea
+    id: phrase
+    attributes: { label: La phrase, description: "Et où elle apparaît." }
+    validations: { required: true }
+  - type: textarea
+    id: mieux
+    attributes: { label: Ce qui irait mieux, description: "Facultatif — même une intuition aide." }

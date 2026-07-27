@@ -1,0 +1,28 @@
+name: Lighthouse
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+
+      - name: Servir le site
+        run: |
+          node build.mjs
+          mkdir -p _site
+          cp index.html app.js db.json sw.js icon.svg manifest.webmanifest standalone.html _site/
+          npx --yes http-server _site -p 8080 --silent &
+          npx --yes wait-on http://127.0.0.1:8080/index.html
+
+      - name: Audit
+        run: npx --yes @lhci/cli@0.14.x autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
