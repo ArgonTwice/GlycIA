@@ -523,6 +523,7 @@ function renderShootIntro() {
       </button>`).join('')}
     </div>
 
+    <p class="foot-note">📏 Pose une carte bancaire ou une fourchette à côté de l'assiette : ça calibre les volumes et divise l'erreur d'estimation par deux.</p>
     <p class="foot-note" id="shootHint">La photo est réduite puis analysée. Rien n'est conservé après la fermeture.</p>`;
 
   $('#optCam').addEventListener('click', openCam);
@@ -548,7 +549,7 @@ async function openCam() {
       <button class="cam-shot" id="camShot" aria-label="Prendre la photo"></button>
     </div>
     <div class="sheet-foot"><button class="btn btn-ghost" id="camBack">Retour</button></div>
-    <p class="foot-note" id="shootHint">Cadre ton assiette de haut, l'estimation des volumes sera plus juste.</p>`;
+    <p class="foot-note" id="shootHint">Cadre ton assiette de haut. Une carte bancaire ou une fourchette posée à côté calibre les volumes.</p>`;
   $('#camBack').addEventListener('click', () => { stopCam(); renderShootIntro(); });
 
   try {
@@ -601,13 +602,14 @@ const VISION_RULES = () => `Tu analyses la photo d'un repas pour GlycIA, une app
 
 Réponds UNIQUEMENT par un objet JSON valide, sans aucun texte autour et sans balises Markdown.
 Format exact attendu :
-{"plat":"nom court du repas","emoji":"1 emoji","aliments":[{"nom":"...","emoji":"1 emoji","grammes":120,"glucides_100g":25,"ig":55,"unite":"poignée"}],"conseil":"une phrase"}
+{"plat":"nom court du repas","emoji":"1 emoji","echelle":false,"aliments":[{"nom":"...","emoji":"1 emoji","grammes":120,"glucides_100g":25,"ig":55,"unite":"poignée"}],"conseil":"une phrase"}
 Règles :
 - "grammes" : poids estimé de la portion réellement visible dans l'assiette.
 - "glucides_100g" : grammes de glucides pour 100 g de cet aliment tel qu'il est servi (cuit).
 - "ig" : indice glycémique de l'aliment, 0 s'il ne contient pas de glucides.
 - "unite" : le mot qui décrit naturellement une portion (poignée, cuillère, tranche, part, unité, demi-assiette, verre).
 - 8 aliments maximum, du plus important au moins important.
+- "echelle" : true si un objet de référence de taille connue est visible à côté de l'assiette (carte bancaire = 85,6 × 54 mm, fourchette ≈ 19 cm, pièce de 2 € = 25,75 mm) — utilise-le alors pour calibrer précisément les grammages. Sinon false.
 - "conseil" : UNE phrase de 25 mots maximum, au tutoiement, chaleureuse, qui tient compte du contexte de journée fourni par l'utilisateur. Jamais de culpabilisation, jamais d'interdit, jamais de dose d'insuline ni de consigne médicale : parle uniquement de l'assiette, de l'ordre dans lequel manger, ou d'une marche après le repas.
 - Si la photo ne montre aucun aliment identifiable, renvoie "aliments": [].
 
@@ -623,7 +625,7 @@ function hashStr(s) {
 }
 /* Copie profonde : les ± sur les portions ne doivent jamais toucher l'entrée en cache */
 const cloneRes = (r, cached) => ({
-  icon: r.icon, name: r.name, cached,
+  icon: r.icon, name: r.name, cached, echelle: r.echelle,
   advice: (!cached || r.ctxN === state.journal.length) ? r.advice : null,
   items: r.items.map(it => ({ q: it.q, f: { ...it.f } }))
 });
@@ -673,6 +675,7 @@ async function visionAnalyze(dataURL) {
     const res = {
       icon: String(j.emoji || '🍽️').slice(0, 4),
       name: String(j.plat || 'Mon assiette').slice(0, 52),
+      echelle: !!j.echelle,
       advice: j.conseil ? String(j.conseil).slice(0, 220) : null,
       ctxN: state.journal.length,
       items
@@ -743,13 +746,14 @@ async function runAnalysis(rawURL, forced, merge) {
   if (rawURL) img = await compress(rawURL);
   showScanning(img, forced);
 
-  let plate = null, items = null, source = 'local', advice = null;
+  let plate = null, items = null, source = 'local', advice = null, echelle = false;
   if (img) {
     const v = await visionAnalyze(img);
     if (v) {
       plate = { icon: v.icon, name: v.name };
       items = v.items;
       advice = v.advice;
+      echelle = v.echelle;
       source = v.cached ? 'cache' : 'vision';
     }
   }
@@ -774,6 +778,7 @@ async function runAnalysis(rawURL, forced, merge) {
     items: merged,
     /* le conseil de Claude vaut pour UNE photo : après fusion, on repasse au message local */
     advice: prev ? null : advice,
+    echelle: (prev && prev.echelle) || echelle,
     baseCarbs: computeTotals(merged).carbs,
     source: prev && (prev.source === 'vision' || prev.source === 'cache') ? prev.source : source
   };
@@ -839,9 +844,12 @@ function renderResult() {
     ${a.shots.length > 1 ? `<div class="thumbs">${a.shots.map((s, i) =>
       `<img src="${s}" alt="Photo ${i + 1}">`).join('')}<span class="thumbs-n">${a.shots.length} photos fusionnées</span></div>` : ''}
 
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 10px;flex-wrap:wrap">
       <span class="eyebrow">${a.items.length} aliment${a.items.length > 1 ? 's' : ''} — ajuste les portions</span>
-      <span class="chip ${b.c}">${b.t}</span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap">
+        ${a.echelle ? '<span class="chip sage">📏 Volumes calibrés</span>' : ''}
+        <span class="chip ${b.c}">${b.t}</span>
+      </span>
     </div>
     <div id="itemList"></div>
 
