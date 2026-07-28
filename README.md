@@ -117,8 +117,8 @@ Le workflow `release.yml` crée la release et y attache `standalone.html` ainsi 
 | Donnée | Source | Version |
 |---|---|---|
 | Glucides et calories aux 100 g | [Table Ciqual](https://ciqual.anses.fr/), ANSES — [doi:10.57745/RDMHWY](https://entrepot.recherche.data.gouv.fr/dataset.xhtml?persistentId=doi:10.57745/RDMHWY) | 2025 (3 484 aliments) |
-| Index glycémique | [International Tables of Glycemic Index and Glycemic Load Values](https://ajcn.nutrition.org/article/S0002-9165(22)00494-4/fulltext), Atkinson & Brand-Miller, *AJCN* | 2021 |
-| Seuils IG (bas ≤ 55, moyen 56–69, élevé ≥ 70) | Convention des mêmes tables | 2021 |
+| Index glycémique | **Aucune source vérifiée — voir ci-dessous** | — |
+| Seuils IG (bas ≤ 55, moyen 56–69, élevé ≥ 70) | Convention internationale, [Atkinson & Brand-Miller 2021](https://ajcn.nutrition.org/article/S0002-9165(22)00494-4/fulltext) | 2021 |
 | Repères fibres, fruits et légumes, sucres libres | [OMS, apports en glucides](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates) | 2023 |
 | Produits emballés scannés | [Open Food Facts](https://world.openfoodfacts.org/) (ODbL) | en ligne |
 | Complément international | [FoodData Central](https://fdc.nal.usda.gov/), USDA | en ligne |
@@ -138,7 +138,17 @@ Soit **4 170 aliments hors ligne** et plusieurs millions en ligne. Les aliments 
 
 Ciqual est aussi la source de [Gluci-Chek](https://www.accu-chek.fr/produits/application/gluci-chek), l'application de comptage de Roche : ce n'est pas une base concurrente, c'est la même référence.
 
-Ciqual ne publie **pas** d'index glycémique — d'où la seconde source, et le fait que l'IG ne soit jamais modifié par l'outil d'audit.
+### ⚠️ L'index glycémique n'est pas sourcé
+
+Ciqual ne publie pas d'index glycémique, et **aucune valeur d'IG de cette app n'a été vérifiée contre une source**. Une version antérieure de ce README citait les *International Tables of Glycemic Index 2021* : c'était faux, la vérification n'avait jamais été faite.
+
+Ce que dit l'audit de la base : **82 % des IG sont des multiples de 5**, et les valeurs les plus fréquentes sont 60, 55, 50, 65, 45. Des mesures de laboratoire ne se distribuent pas ainsi. Les valeurs sont vraisemblables — pomme 38, lentilles 30, banane 52 sont dans les ordres de grandeur publiés — mais elles sont **arrondies et non traçables**.
+
+Pour les aliments venus de Ciqual, d'Open Food Facts ou de l'USDA, l'IG est carrément calculé par `guessIG()`, une heuristique à base de mots-clés.
+
+Il n'existe pas de base d'IG libre, exploitable par machine et faisant autorité : celle de l'[Université de Sydney](https://glycemicindex.com/) est un site de consultation sans export, et les tables 2021 sont un supplément d'article sous droits, non redistribuable. Par ailleurs l'IG varie d'un laboratoire à l'autre, avec la maturité, la cuisson et la personne — les tables 2021 séparent elles-mêmes les valeurs « précises » des « moins robustes ».
+
+**Ne fonde aucune décision sur l'IG affiché ici.** Les glucides, eux, sont sourcés.
 
 ### Vérifier les valeurs
 

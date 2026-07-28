@@ -1349,8 +1349,11 @@ paintCake();
    complétée par l'étiquetage fabricant pour les produits de marque et les
    plats de chaîne, absents de Ciqual. Les valeurs décrivent l'aliment PRÊT À
    MANGER, pas cru : c'est ce qu'on a dans l'assiette.
-   Index glycémique : International Tables of Glycemic Index 2021 (Atkinson &
-   Brand-Miller, AJCN) — Ciqual n'en publie pas.
+   Index glycémique : AUCUNE SOURCE VÉRIFIÉE. Ciqual n'en publie pas, et les
+   valeurs presentes ici n'ont jamais ete confrontees a une table de reference.
+   82 % d'entre elles sont des multiples de 5 : ce sont des arrondis saisis a
+   la main, vraisemblables mais non tracables. Voir la section Donnees du
+   README avant de leur faire confiance.
    Confrontation à Ciqual : node tools/audit-ciqual.mjs
    ========================================================================== */
 
@@ -3999,13 +4002,21 @@ function renderSettings() {
       <div class="sect-head"><h3 style="font-size:17px">D'où viennent les chiffres</h3></div>
       <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.5">
         Glucides et calories : <b>table Ciqual 2025</b> de l'ANSES, la même référence que Gluci-Chek.
-        Index glycémique : <b>International Tables of Glycemic Index 2021</b> — Ciqual n'en publie pas.
         Les produits de marque et les plats de chaîne viennent de l'étiquetage.
       </p>
       <p class="foot-note" style="text-align:left;margin-top:10px">
         Les valeurs décrivent l'aliment <b>prêt à manger</b>, pas cru. Ce sont des estimations :
         recettes, marques et portions font varier ces chiffres.
       </p>
+      <div class="gp-why no" style="margin-top:12px">
+        <b>⚠️ L'index glycémique n'est pas sourcé</b>
+        <p>Aucune valeur d'IG de cette app n'a été vérifiée contre une table de référence.
+        82 % sont des multiples de 5 : des arrondis saisis à la main. Pour les aliments venus
+        de Ciqual, d'Open Food Facts ou de l'USDA, l'IG est calculé par une heuristique.</p>
+        <p>Il n'existe pas de base d'IG libre et exploitable faisant autorité, et l'IG varie
+        de toute façon d'un laboratoire à l'autre, avec la cuisson et avec la personne.
+        <b>Les glucides, eux, sont sourcés — fonde-toi sur eux.</b></p>
+      </div>
       <div class="eyebrow" style="margin:16px 0 8px">Élargir la recherche</div>
       <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45;margin-bottom:10px">
         Quand un aliment manque, l'app ouvre la table Ciqual complète (3 128 aliments de plus),
