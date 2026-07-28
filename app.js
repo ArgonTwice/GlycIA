@@ -1369,7 +1369,7 @@ const CAT_ICON = {
   'Spécialités régionales françaises':'🇫🇷','Petit-déjeuner & tartines':'🥐',
   'Épicerie, farines & basiques':'🧂','Sans gluten, végétarien & spécifique':'🌱',
   'Sport & diététique':'💪','Trouvés en ligne':'🌐','Ajoutés par Claude':'✨',
-  'Mes produits':'🛒'
+  'Mes produits':'🛒','Table Ciqual':'📗','FoodData Central':'🇺🇸'
 };
 
 /* Corrections en boucle courte : ouvre une issue GitHub pré-remplie, une Action ouvre la PR sur db.json */
@@ -1428,7 +1428,17 @@ $('#foodQ').addEventListener('input', e => {
   $('#foodClear').style.display = e.target.value ? 'grid' : 'none';
   renderFoods();
   clearTimeout(offTimer);
-  if (fq.length >= 3 && matchFoods().length < 6) offTimer = setTimeout(() => offSearch(fq), 700);
+  /* Quatre niveaux, du moins cher au plus cher : le noyau, la table Ciqual
+     complète (un fichier, une fois), Open Food Facts, puis FoodData Central.
+     On s'arrête dès qu'il y a de quoi répondre. */
+  if (fq.length >= 3 && matchFoods().length < 6) offTimer = setTimeout(async () => {
+    if (await ensureCiqual()) {
+      renderFoods(`Table Ciqual ouverte — ${ALL.length} aliments disponibles`);
+      if (matchFoods().length >= 6) return;
+    }
+    await offSearch(fq);
+    if (matchFoods().length < 6) await usdaSearch(fq);
+  }, 700);
 });
 $('#foodClear').addEventListener('click', () => {
   $('#foodQ').value = ''; fq = ''; fLimit = 40;
@@ -1482,6 +1492,39 @@ function withBrand(name, brands) {
   return name.slice(0, 52);
 }
 
+/* ---------- Table Ciqual étendue, chargée à la demande ----------
+   db.json est le noyau : aliments choisis, portions réalistes, IG sourcé.
+   ciqual.json ajoute les 3 128 aliments restants de l'ANSES. Il n'est pas
+   chargé au démarrage — 196 Ko de plus au premier rendu pour une table dont
+   la plupart des gens n'auront jamais besoin. On l'ouvre quand la recherche
+   dépasse le noyau, une seule fois par session.
+   Sans serveur (standalone.html ouvert en fichier local) le fetch échoue :
+   la recherche se rabat alors sur le noyau, comme avant. */
+const CIQ_CAT = 'Table Ciqual';
+let ciqualCharge = false, ciqualEnCours = null;
+
+function ensureCiqual() {
+  if (ciqualCharge) return Promise.resolve(false);
+  if (ciqualEnCours) return ciqualEnCours;
+  ciqualEnCours = (async () => {
+    try {
+      const r = await fetch(new URL('./ciqual.json', import.meta.url));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      for (const [n, c, kcal, lip, code] of d.aliments) {
+        registerFood({ n, cat: CIQ_CAT, c, ig: guessIG(n, c), kcal,
+                       pw: 100, pl: '100 g', lip, ciq: code, igEst: true,
+                       k: normalize(n + ' ' + CIQ_CAT) });
+      }
+      ciqualCharge = true;
+      return true;
+    } catch (_) {
+      return false;              // le noyau suffit, on ne casse rien
+    } finally { ciqualEnCours = null; }
+  })();
+  return ciqualEnCours;
+}
+
 /* Un produit Open Food Facts -> une entrée de la base, quelle que soit la
    route qui l'a ramené. Les deux API ne renvoient pas la même enveloppe mais
    les mêmes champs produit. */
@@ -1530,6 +1573,75 @@ async function offFetchSearch(q) {
   throw derniere || new Error('injoignable');
 }
 
+/* ---------- FoodData Central (USDA) ----------
+   Deuxième source en ligne, ~600 000 aliments. C'est la seule autre API
+   alimentaire que j'aie trouvée appelable depuis un navigateur : CORS ouvert,
+   pas d'OAuth. Utile surtout pour ce qui manque aux sources françaises.
+   Sans clé personnelle elle répond quand même, via DEMO_KEY, mais limitée à
+   quelques dizaines d'appels par heure — d'où le champ dans les Réglages. */
+const USDA_KEY = 'glycia.usda';
+const usdaKey = () => (store.get(USDA_KEY) || '').trim() || 'DEMO_KEY';
+const USDA_CAT = 'FoodData Central';
+
+function usdaToEntry(p) {
+  const val = nom => {
+    const n = (p.foodNutrients || []).find(x => x.nutrientName === nom);
+    return n && isFinite(+n.value) ? +n.value : undefined;
+  };
+  const c = val('Carbohydrate, by difference');
+  if (c === undefined) return null;
+  const nom = String(p.description || '').trim();
+  if (!nom) return null;
+  const name = withBrand(nom.charAt(0) + nom.slice(1).toLowerCase(), p.brandOwner || p.brandName);
+  return {
+    n: name, cat: USDA_CAT,
+    c: clamp(round(c, 1), 0, 100),
+    ig: guessIG(name + ' ' + (p.foodCategory || ''), c),
+    kcal: clamp(Math.round(val('Energy') || 0), 0, 900),
+    pw: clamp(Math.round(+p.servingSize || 100), 5, 900),
+    pl: String(p.householdServingFullText || '100 g').slice(0, 22),
+    lip: val('Total lipid (fat)'),
+    /* off: pour l'icône 🌐 et pour ne pas proposer de corriger db.json ;
+       usda: pour que la fiche nomme la bonne source. */
+    igEst: true, off: true, usda: true, k: normalize(name + ' ' + USDA_CAT)
+  };
+}
+
+let usdaBusy = false;
+async function usdaSearch(q) {
+  if (usdaBusy) return 0;
+  usdaBusy = true;
+  try {
+    const url = 'https://api.nal.usda.gov/fdc/v1/foods/search?pageSize=20'
+      + `&query=${encodeURIComponent(q)}&api_key=${encodeURIComponent(usdaKey())}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    let added = 0;
+    for (const p of d.foods || []) {
+      const f = usdaToEntry(p);
+      if (!f) continue;
+      const key = normalize(f.n);
+      if (seenF.has(key)) continue;
+      seenF.add(key); ALL.push(f);
+      if (!CATS.includes(USDA_CAT)) {
+        CATS.push(USDA_CAT);
+        $('#foodCats').insertAdjacentHTML('beforeend',
+          `<button class="cat" data-cat="${esc(USDA_CAT)}">${CAT_ICON[USDA_CAT]} FoodData</button>`);
+        bindCats();
+      }
+      added++;
+    }
+    renderFoods(added ? `${added} aliment${added > 1 ? 's' : ''} depuis FoodData Central (USDA)`
+                      : 'Rien de plus côté FoodData Central');
+    return added;
+  } catch (_) {
+    const z = $('#foodOnline');
+    if (z) z.innerHTML = `<div class="online-wait">FoodData Central injoignable — quota atteint, ou pas de clé.</div>`;
+    return 0;
+  } finally { usdaBusy = false; }
+}
+
 let offBusy = false;
 async function offSearch(q) {
   if (offBusy) return;
@@ -1553,6 +1665,7 @@ async function offSearch(q) {
       bindCats();
     }
     renderFoods(added ? `${added} produit${added > 1 ? 's' : ''} récupéré${added > 1 ? 's' : ''} depuis Open Food Facts` : 'Aucun produit trouvé en ligne');
+    return added;
   } catch (e) {
     const z = $('#foodOnline');
     if (z) z.innerHTML = `<div class="online-wait">Base mondiale injoignable depuis cet aperçu.</div>`;
@@ -1618,9 +1731,11 @@ function renderFoods(onlineMsg) {
           ${gpReason(f).map(r => `<p>${esc(r)}</p>`).join('')}
         </div>` : ''}
         <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
-        <div class="fsrc">${f.off ? '🌐 Open Food Facts, saisi par les contributeurs'
+        <div class="fsrc">${f.usda ? '🇺🇸 FoodData Central, USDA'
+          : f.off ? '🌐 Open Food Facts, saisi par les contributeurs'
           : f.ciq ? `📗 Table Ciqual 2025 de l’ANSES <a href="https://ciqual.anses.fr/#/aliments/${f.ciq}" target="_blank" rel="noopener">fiche ${f.ciq}</a>`
-          : '🏷️ Étiquetage fabricant — absent de Ciqual'}</div>
+          : '🏷️ Étiquetage fabricant — absent de Ciqual'}${
+          f.igEst ? '<br>IG estimé — aucune de ces tables ne le publie' : ''}</div>
         ${(() => { const p = personalIg(f.n, f.ig); return p
           ? `<div class="fmeta" style="color:var(--violet-deep)"><b>IG chez toi : ${p.ig}</b> (base : ${f.ig}) — observé sur ${p.n} repas</div>`
           : ''; })()}
@@ -3597,6 +3712,7 @@ const GP_CAT = {
   'Plats préparés & cuisine maison':2, 'Petit-déjeuner & tartines':2,
   'Épicerie, farines & basiques':2, 'Sans gluten, végétarien & spécifique':2,
   'Sport & diététique':2, 'Trouvés en ligne':2, 'Ajoutés par Claude':2, 'Mes produits':2,
+  'Table Ciqual':2, 'FoodData Central':2,
   'Fast-food & sandwichs':3, 'Sauces, matières grasses & apéro':3,
   'Cuisine du monde':3, 'Spécialités régionales françaises':3
 };
@@ -3890,6 +4006,21 @@ function renderSettings() {
         Les valeurs décrivent l'aliment <b>prêt à manger</b>, pas cru. Ce sont des estimations :
         recettes, marques et portions font varier ces chiffres.
       </p>
+      <div class="eyebrow" style="margin:16px 0 8px">Élargir la recherche</div>
+      <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45;margin-bottom:10px">
+        Quand un aliment manque, l'app ouvre la table Ciqual complète (3 128 aliments de plus),
+        puis interroge Open Food Facts, puis FoodData Central de l'USDA.
+        Cette dernière fonctionne sans rien configurer, mais avec un quota partagé.
+        Une clé personnelle, gratuite sur <a href="https://fdc.nal.usda.gov/api-key-signup.html"
+        target="_blank" rel="noopener">fdc.nal.usda.gov</a>, lève la limite.
+      </p>
+      <div class="searchbox">
+        <svg><use href="#i-search"/></svg>
+        <input id="usdaKeyIn" type="password" autocomplete="off"
+               placeholder="Clé FoodData Central (facultatif)" value="${esc(store.get(USDA_KEY) || '')}">
+      </div>
+      <button class="btn btn-outline btn-block" id="usdaSave" style="margin-top:8px">Enregistrer la clé</button>
+
       <div class="eyebrow" style="margin:16px 0 8px">Repères de l'OMS, 2023</div>
       <div class="fgrid">
         <div><b style="color:var(--sage-deep)">25 g</b><span>Fibres / jour</span></div>
@@ -3936,6 +4067,12 @@ function renderSettings() {
     toast('Configuration effacée');
   };
 
+  $('#usdaSave').onclick = () => {
+    const v = $('#usdaKeyIn').value.trim();
+    if (v) store.set(USDA_KEY, v); else store.del(USDA_KEY);
+    toast(v ? 'Clé FoodData Central enregistrée' : 'Clé effacée — quota partagé');
+  };
+
   $('#nsSave').onclick = async () => {
     const u = $('#nsUrlIn').value.trim().replace(/\/+$/, ''), t = $('#nsTokIn').value.trim();
     if (u && !/^https:\/\//.test(u)) { toast('L\'adresse doit être en https://'); return; }
@@ -3969,7 +4106,7 @@ function renderSettings() {
   $('#wipe').onclick = () => {
     store.del('glycia.data'); store.del('glycia.key'); store.del('glycia.proxy');
     store.del('glycia.onboarded'); store.del('glycia.profile'); store.del(MYKEY);
-    store.del(NS_URL); store.del(NS_TOKEN); store.del(IGP_KEY);
+    store.del(NS_URL); store.del(NS_TOKEN); store.del(IGP_KEY); store.del(USDA_KEY);
     location.reload();
   };
 }

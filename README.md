@@ -121,6 +121,20 @@ Le workflow `release.yml` crée la release et y attache `standalone.html` ainsi 
 | Seuils IG (bas ≤ 55, moyen 56–69, élevé ≥ 70) | Convention des mêmes tables | 2021 |
 | Repères fibres, fruits et légumes, sucres libres | [OMS, apports en glucides](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates) | 2023 |
 | Produits emballés scannés | [Open Food Facts](https://world.openfoodfacts.org/) (ODbL) | en ligne |
+| Complément international | [FoodData Central](https://fdc.nal.usda.gov/), USDA | en ligne |
+
+### Quatre niveaux de recherche
+
+L'app cherche du moins cher au plus cher, et s'arrête dès qu'elle a de quoi répondre :
+
+1. **`db.json`** — 1 042 aliments choisis, portions réalistes, chargé au démarrage.
+2. **`ciqual.json`** — les 3 128 autres aliments de la table de l'ANSES, 196 Ko chargés à la demande. Pas au démarrage : le budget de poids de la page est déjà presque atteint.
+3. **Open Food Facts** — les produits emballés, par nom ou par code-barres.
+4. **FoodData Central** — ~600 000 aliments, surtout américains, pour ce qui manque ailleurs. Fonctionne sans configuration via un quota partagé ; une [clé gratuite](https://fdc.nal.usda.gov/api-key-signup.html) lève la limite.
+
+Soit **4 170 aliments hors ligne** et plusieurs millions en ligne. Les aliments venus des niveaux 2 à 4 portent un IG estimé, jamais mesuré : aucune de ces tables ne le publie, et la fiche le dit.
+
+`standalone.html` n'embarque que le noyau : sans serveur, les trois autres niveaux ne répondent pas.
 
 Ciqual est aussi la source de [Gluci-Chek](https://www.accu-chek.fr/produits/application/gluci-chek), l'application de comptage de Roche : ce n'est pas une base concurrente, c'est la même référence.
 
