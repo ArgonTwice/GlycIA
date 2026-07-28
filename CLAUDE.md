@@ -31,6 +31,11 @@ Le hook `.githooks/pre-commit` le regenere automatiquement (`git config core.hoo
 ```bash
 node --check app.js
 node -e "JSON.parse(require('fs').readFileSync('db.json','utf8'))"
+node --test "tools/test/*.test.mjs"
 node build.mjs --check
 python3 -m http.server 8000   # tester sur localhost
 ```
+
+Les tests chargent `app.js` dans Node avec un DOM factice (`tools/test/harness.mjs`)
+et testent les vraies fonctions, pas des copies. `app.js` les expose par
+`__GLYCIA_TEST__`, inerte dans un navigateur.

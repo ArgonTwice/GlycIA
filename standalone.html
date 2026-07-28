@@ -6164,6 +6164,15 @@ loadGlucose();
 scheduleReminder();
 generateRetro(false);
 
+/* Point d'accroche des tests. Inerte dans un navigateur : rien ne définit
+   __GLYCIA_TEST__, donc rien n'est exposé. Voir tools/test/. */
+if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
+  normalize, clamp, round, esc, fmtQ, igClass, igLabel, guessIG, withBrand,
+  gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
+  igKey, personalIg, collectResponses, mealResponse, matchShoppingItem,
+  computeTotals, offToFood, toGl, fmtDur, IGP, state, ALL
+});
+
 })();
 
 </script>
