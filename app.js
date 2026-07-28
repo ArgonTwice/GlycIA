@@ -125,7 +125,8 @@ const state = {
   analysis: null,
   recipe: null,
   gpLog: [],
-  shoppingList: []
+  shoppingList: [],
+  glucose: []          // [{ t: Date, mgdl }] — fenêtre 24 h, capteur Nightscout
 };
 
 /* Démo pré-chargée */
@@ -1763,6 +1764,96 @@ function renderWeek() {
 
   $$('#weekChart .wk').forEach(g => g.addEventListener('click', () => { weekSel = +g.dataset.day; renderWeek(); }));
 }
+
+/* ==========================================================================
+   30. CAPTEUR DE GLYCÉMIE — Nightscout
+   Affichage et corrélation uniquement. Aucune suggestion de dose, aucune
+   alerte prédictive, aucune interprétation : ce sont des fonctions de
+   dispositif médical. Et pas de « temps dans la cible » : ce serait un
+   score, exactement ce que l'app refuse.
+   ========================================================================== */
+const NS_URL = 'glycia.nightscout';
+const NS_TOKEN = 'glycia.nsToken';
+const nsUrl = () => (store.get(NS_URL) || '').trim().replace(/\/+$/, '');
+const nsToken = () => (store.get(NS_TOKEN) || '').trim();
+
+/* La France lit en g/L, Nightscout renvoie des mg/dL */
+const toGl = v => (v / 100).toFixed(2).replace('.', ',');
+
+async function fetchGlucose() {
+  const base = nsUrl();
+  if (!base) return [];
+  const tok = nsToken();
+  const url = `${base}/api/v1/entries.json?count=288` + (tok ? `&token=${encodeURIComponent(tok)}` : '');
+  const r = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const rows = await r.json();
+  if (!Array.isArray(rows)) throw new Error('réponse inattendue');
+  const cut = Date.now() - 24 * 3600 * 1000;
+  return rows
+    .map(e => ({ t: new Date(e && (e.date || Date.parse(e.dateString))), mgdl: Math.round(+(e && e.sgv)) }))
+    .filter(p => isFinite(p.mgdl) && p.mgdl > 0 && isFinite(+p.t) && +p.t >= cut)
+    .sort((a, b) => a.t - b.t);
+}
+
+async function loadGlucose(manual) {
+  const sect = $('#cgmSect');
+  if (!nsUrl()) { sect.hidden = true; return; }
+  sect.hidden = false;
+  if (manual) $('#cgmInfo').textContent = 'Lecture du capteur…';
+  try {
+    state.glucose = await fetchGlucose();
+    renderGlucose();
+  } catch (_) {
+    /* dégradation : on garde la dernière courbe connue plutôt qu'un écran vide */
+    renderGlucose('Capteur injoignable pour le moment.');
+  }
+}
+
+function renderGlucose(msg) {
+  const pts = state.glucose;
+  if (!pts.length) {
+    $('#cgmChart').innerHTML = '';
+    $('#cgmNow').textContent = '';
+    $('#cgmInfo').textContent = msg || 'Aucune mesure sur les 24 dernières heures.';
+    return;
+  }
+  const W = 322, H = 132, padT = 8, padB = 18;
+  const t0 = +pts[0].t, t1 = +pts[pts.length - 1].t;
+  const span = Math.max(1, t1 - t0);
+  const vals = pts.map(p => p.mgdl);
+  const lo = Math.min(60, ...vals) - 10;
+  const hi = Math.max(200, ...vals) + 10;
+  const X = p => ((+p.t - t0) / span) * W;
+  const Y = v => padT + (1 - (v - lo) / (hi - lo)) * (H - padB - padT);
+
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p).toFixed(1)} ${Y(p.mgdl).toFixed(1)}`).join(' ');
+  const bandTop = Y(180), bandBot = Y(70);
+  const last = pts[pts.length - 1];
+  const mins = Math.round((Date.now() - +last.t) / 60000);
+
+  $('#cgmChart').innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img"
+         aria-label="Glycémie des 24 dernières heures, de ${toGl(Math.min(...vals))} à ${toGl(Math.max(...vals))} grammes par litre">
+      <rect x="0" y="${bandTop.toFixed(1)}" width="${W}" height="${(bandBot - bandTop).toFixed(1)}"
+            fill="#81C784" opacity=".13"/>
+      <line x1="0" y1="${bandTop.toFixed(1)}" x2="${W}" y2="${bandTop.toFixed(1)}"
+            stroke="#E5DFD2" stroke-width="1.5" stroke-dasharray="4 5"/>
+      <line x1="0" y1="${bandBot.toFixed(1)}" x2="${W}" y2="${bandBot.toFixed(1)}"
+            stroke="#E5DFD2" stroke-width="1.5" stroke-dasharray="4 5"/>
+      <text x="2" y="${(bandTop - 4).toFixed(1)}" font-size="9" fill="#A9A199" font-weight="600">1,80 g/L</text>
+      <text x="2" y="${(bandBot + 11).toFixed(1)}" font-size="9" fill="#A9A199" font-weight="600">0,70 g/L</text>
+      <path d="${d}" fill="none" stroke="#7E6BB0" stroke-width="2.2"
+            stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${X(last).toFixed(1)}" cy="${Y(last.mgdl).toFixed(1)}" r="4" fill="#7E6BB0"/>
+    </svg>`;
+  $('#cgmNow').textContent = `${toGl(last.mgdl)} g/L`;
+  $('#cgmInfo').innerHTML = `<b>Dernière mesure ${mins < 2 ? "à l'instant" : `il y a ${mins} min`}</b>`
+    + ` — ${last.mgdl} mg/dL. Sur 24 h : de ${toGl(Math.min(...vals))} à ${toGl(Math.max(...vals))} g/L, ${pts.length} mesures.`
+    + (msg ? ` <span style="color:var(--terra-deep)">${esc(msg)}</span>` : '');
+}
+
+$('#cgmRefresh').addEventListener('click', () => loadGlucose(true));
 
 /* ==========================================================================
    16. MODE RESTAURANT — géoloc puis cartes des restos autour
@@ -3454,6 +3545,33 @@ function renderSettings() {
       </label>
     </div>
     <div class="card" style="margin-top:12px">
+      <div class="sect-head"><h3 style="font-size:17px">Capteur de glycémie</h3></div>
+      <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45;margin-bottom:12px">
+        Nightscout : colle l'adresse de ton site, l'app lit les 24 dernières heures et trace la courbe.
+        Lecture seule, rien n'est envoyé ni modifié chez toi.
+      </p>
+      <div class="searchbox">
+        <svg><use href="#i-search"/></svg>
+        <input id="nsUrlIn" type="url" autocomplete="off" inputmode="url"
+               placeholder="https://<toi>.up.railway.app" value="${esc(store.get(NS_URL) || '')}">
+      </div>
+      <div class="searchbox" style="margin-top:8px">
+        <svg><use href="#i-search"/></svg>
+        <input id="nsTokIn" type="password" autocomplete="off"
+               placeholder="Jeton de lecture (facultatif)" value="${esc(store.get(NS_TOKEN) || '')}">
+      </div>
+      <p class="foot-note" style="text-align:left;margin-top:8px">
+        Le jeton n'est utile que si ton site n'est pas en lecture publique. Adresse et jeton restent
+        dans ce navigateur. GlycIA affiche la courbe et la met en regard de tes repas :
+        <b>jamais de dose, jamais d'alerte, jamais d'interprétation.</b>
+      </p>
+      <div class="sheet-foot">
+        <button class="btn btn-ghost" id="nsDel">Déconnecter</button>
+        <button class="btn btn-primary" id="nsSave"><svg><use href="#i-check"/></svg> Enregistrer</button>
+      </div>
+      <div id="nsTest"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
       <div class="sect-head"><h3 style="font-size:17px">Tes données</h3></div>
       <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45">
         Journal, favoris et historique sont enregistrés dans ce navigateur uniquement. Rien ne part sur un serveur.
@@ -3483,9 +3601,40 @@ function renderSettings() {
     $('#apiKey').value = ''; $('#apiProxy').value = '';
     toast('Configuration effacée');
   };
+
+  $('#nsSave').onclick = async () => {
+    const u = $('#nsUrlIn').value.trim().replace(/\/+$/, ''), t = $('#nsTokIn').value.trim();
+    if (u && !/^https:\/\//.test(u)) { toast('L\'adresse doit être en https://'); return; }
+    if (u) store.set(NS_URL, u); else store.del(NS_URL);
+    if (t) store.set(NS_TOKEN, t); else store.del(NS_TOKEN);
+    if (!u) { $('#cgmSect').hidden = true; toast('Capteur déconnecté'); return; }
+    $('#nsTest').innerHTML = `<div class="online-wait">Test de la connexion…</div>`;
+    try {
+      const pts = await fetchGlucose();
+      state.glucose = pts;
+      renderGlucose();
+      $('#cgmSect').hidden = false;
+      $('#nsTest').innerHTML = pts.length
+        ? `<div class="online-wait" style="color:var(--sage-deep)">✅ ${pts.length} mesures lues — la courbe est sur l'accueil.</div>`
+        : `<div class="online-wait">Connexion établie, mais aucune mesure sur les 24 dernières heures.</div>`;
+    } catch (_) {
+      $('#nsTest').innerHTML = `<div class="online-wait" style="color:var(--terra-deep)">
+        Site injoignable. Vérifie l'adresse, et que la lecture est autorisée (CORS activé, ou jeton renseigné).</div>`;
+    }
+  };
+  $('#nsDel').onclick = () => {
+    store.del(NS_URL); store.del(NS_TOKEN);
+    $('#nsUrlIn').value = ''; $('#nsTokIn').value = '';
+    state.glucose = [];
+    $('#cgmSect').hidden = true;
+    $('#nsTest').innerHTML = '';
+    toast('Capteur déconnecté');
+  };
+
   $('#wipe').onclick = () => {
     store.del('glycia.data'); store.del('glycia.key'); store.del('glycia.proxy');
     store.del('glycia.onboarded'); store.del('glycia.profile'); store.del(MYKEY);
+    store.del(NS_URL); store.del(NS_TOKEN);
     location.reload();
   };
 }
@@ -3963,6 +4112,7 @@ if (!store.get('glycia.onboarded') && !sharedIncoming && !scanIncoming) openModa
 checkQuickAddParam();
 checkSharedPhoto();
 checkScanParam();
+loadGlucose();
 scheduleReminder();
 generateRetro(false);
 
