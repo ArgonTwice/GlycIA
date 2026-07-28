@@ -3106,6 +3106,14 @@ function guessIG(txt, c, sug, fib) {
   return clamp(Math.round(ig), 0, 100);
 }
 
+/* Open Food Facts répète souvent la marque dans le nom : on ne la recolle
+   que si elle en est absente, sinon on obtient « Nutella — Nutella ». */
+function withBrand(name, brands) {
+  const brand = brands ? String(brands).split(',')[0].trim() : '';
+  if (brand && !normalize(name).includes(normalize(brand))) name += ' — ' + brand;
+  return name.slice(0, 52);
+}
+
 let offBusy = false;
 async function offSearch(q) {
   if (offBusy) return;
@@ -3125,8 +3133,7 @@ async function offSearch(q) {
       if (!isFinite(c)) return;
       let name = (p.product_name_fr || p.product_name || '').trim();
       if (!name) return;
-      if (p.brands) name += ' — ' + String(p.brands).split(',')[0].trim();
-      name = name.slice(0, 52);
+      name = withBrand(name, p.brands);
       const key = normalize(name);
       if (seenF.has(key)) return;
       seenF.add(key);
@@ -4665,8 +4672,7 @@ function offToFood(p, code) {
   if (!isFinite(c)) return null;
   let name = (p.product_name_fr || p.product_name || '').trim();
   if (!name) return null;
-  if (p.brands) name += ' — ' + String(p.brands).split(',')[0].trim();
-  name = name.slice(0, 52);
+  name = withBrand(name, p.brands);
   return {
     n: name, cat: 'Trouvés en ligne', code,
     c: clamp(round(c, 1), 0, 100),
@@ -4690,17 +4696,21 @@ async function fetchBarcode(code) {
   return f;
 }
 
-function pushFood(f) {
+/* Entre le produit dans la base en mémoire, sans quitter l'écran courant */
+function registerFood(f) {
   const key = normalize(f.n);
-  if (!seenF.has(key)) {
-    seenF.add(key);
-    ALL.push(f);
-    if (!CATS.includes('Trouvés en ligne')) {
-      CATS.push('Trouvés en ligne');
-      $('#foodCats').insertAdjacentHTML('beforeend', `<button class="cat" data-cat="Trouvés en ligne">🌐 En ligne</button>`);
-      bindCats();
-    }
+  if (seenF.has(key)) return;
+  seenF.add(key);
+  ALL.push(f);
+  if (!CATS.includes('Trouvés en ligne')) {
+    CATS.push('Trouvés en ligne');
+    $('#foodCats').insertAdjacentHTML('beforeend', `<button class="cat" data-cat="Trouvés en ligne">🌐 En ligne</button>`);
+    bindCats();
   }
+}
+
+function pushFood(f) {
+  registerFood(f);
   go('food');
   $('#foodQ').value = f.n; fq = normalize(f.n); fCat = null; fOpen = f.n; fLimit = 40;
   $$('#foodCats .cat').forEach((x, i) => x.classList.toggle('on', i === 0));
@@ -4713,6 +4723,7 @@ function stopBd() {
 }
 
 async function openScan() {
+  stopBd();                          // relance depuis « Scanner un autre »
   openModal('scan');
   const body = $('#scanBody');
   if (!('BarcodeDetector' in window)) {
@@ -4763,15 +4774,59 @@ function bindManual() {
   };
 }
 
+/* Fiche produit dans la modale : portion réglable puis ajout direct au journal.
+   Le multiplicateur est partagé avec la base aliments via fPort. */
+function renderScanResult(f, cached) {
+  const mult = fPort[f.n] || 1;
+  const g = Math.round(f.pw * mult);
+  const carbs = round(f.c * g / 100, 1);
+  const kcal = Math.round(f.kcal * g / 100);
+  const cg = round(f.ig * carbs / 100);
+  $('#scanBody').innerHTML = `
+    <div class="card">
+      <div class="fhead" style="padding:0 0 12px">
+        <span class="fe">🌐</span>
+        <span class="fn"><b>${esc(f.n)}</b><span>${esc(f.pl)} · ${f.pw} g · ${igLabel(f.ig)}${cached ? ' · déjà en cache' : ''}</span></span>
+      </div>
+      <div class="fgrid">
+        <div><b style="color:var(--peach-deep)">${carbs}</b><span>Glucides g</span></div>
+        <div><b style="color:${igCol(f.ig)}">${f.ig || '—'}</b><span>Indice IG</span></div>
+        <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge CG</span></div>
+      </div>
+      <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
+      <div class="fport">
+        <span class="lbl">${esc(f.pl)}</span>
+        <div class="step">
+          <button data-sp="-1" aria-label="Moins">−</button>
+          <span class="qty">${fmtQ(mult)}<small>portion${mult > 1 ? 's' : ''}</small></span>
+          <button data-sp="1" aria-label="Plus">+</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="scanAdd">
+        <svg><use href="#i-plus"/></svg> Ajouter au journal</button>
+      <div class="fbtns" style="margin-top:8px">
+        <button class="btn btn-outline" id="scanAgain">Scanner un autre</button>
+        <button class="btn btn-outline" id="scanSee">Voir la fiche</button>
+      </div>
+    </div>`;
+  $$('#scanBody [data-sp]').forEach(b => b.onclick = () => {
+    fPort[f.n] = clamp(round((fPort[f.n] || 1) + (+b.dataset.sp) * .5, 1), .5, 8);
+    renderScanResult(f, cached);
+  });
+  $('#scanAdd').onclick = () => { addFoodToJournal(f.n); closeModal($('#m-scan')); };
+  $('#scanAgain').onclick = () => openScan();
+  $('#scanSee').onclick = () => { closeModal($('#m-scan')); pushFood(f); };
+}
+
 async function lookup(code) {
+  stopBd();                          // saisie manuelle : la caméra tournait encore
   const cached = OFFCACHE.has(code);
   $('#scanBody').innerHTML = `<div class="scan"><div class="scan-ring"></div>
     <div class="scan-step">${cached ? 'Produit déjà en cache…' : 'Interrogation d\'Open Food Facts…'}</div></div>`;
   try {
     const f = await fetchBarcode(code);
-    closeModal($('#m-scan'));
-    pushFood(f);
-    toast(`${f.n}${cached ? ' (cache)' : ''}`);
+    registerFood(f);
+    renderScanResult(findFood(f.n) || f, cached);
   } catch (e) {
     $('#scanBody').innerHTML = `<div class="empty"><strong>Produit introuvable</strong>
       Ce code n'est pas référencé, ou la base est injoignable depuis cet aperçu.</div>` + manualBox();
