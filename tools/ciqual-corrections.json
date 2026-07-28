@@ -1,0 +1,1052 @@
+[
+ {
+  "aliment": "Hot-dog",
+  "categorie": "Fast-food & sandwichs",
+  "ciqual": "Hot-dog, préemballé",
+  "alim_code": "25403",
+  "glucides": [
+   22,
+   26.3
+  ],
+  "kcal": [
+   250,
+   278
+  ]
+ },
+ {
+  "aliment": "Croque-monsieur",
+  "categorie": "Fast-food & sandwichs",
+  "ciqual": "Croque-monsieur, préemballé",
+  "alim_code": "25547",
+  "glucides": [
+   22,
+   26.1
+  ],
+  "kcal": [
+   270,
+   253
+  ]
+ },
+ {
+  "aliment": "Sandwich jambon-beurre",
+  "categorie": "Fast-food & sandwichs",
+  "ciqual": "Sandwich baguette, jambon emmental beurre",
+  "alim_code": "25521",
+  "glucides": [
+   32,
+   30.2
+  ],
+  "kcal": [
+   240,
+   298
+  ]
+ },
+ {
+  "aliment": "Couscous royal",
+  "categorie": "Fast-food & sandwichs",
+  "ciqual": "Couscous royal (avec plusieurs viandes), préemballé",
+  "alim_code": "25127",
+  "glucides": [
+   20,
+   14
+  ],
+  "kcal": [
+   155,
+   132
+  ]
+ },
+ {
+  "aliment": "Gratin dauphinois",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Gratin dauphinois, préemballé",
+  "alim_code": "25056",
+  "glucides": [
+   14,
+   14.5
+  ],
+  "kcal": [
+   145,
+   113
+  ]
+ },
+ {
+  "aliment": "Quenelle nature",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Quenelle nature, à cuire",
+  "alim_code": "8937",
+  "glucides": [
+   20,
+   14.7
+  ],
+  "kcal": [
+   175,
+   226
+  ]
+ },
+ {
+  "aliment": "Choucroute garnie",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Choucroute garnie, préemballée",
+  "alim_code": "25003",
+  "glucides": [
+   6,
+   2.8
+  ],
+  "kcal": [
+   145,
+   109
+  ]
+ },
+ {
+  "aliment": "Blanquette de veau",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Blanquette de veau, préemballée",
+  "alim_code": "25001",
+  "glucides": [
+   5,
+   3.1
+  ],
+  "kcal": [
+   130,
+   113
+  ]
+ },
+ {
+  "aliment": "Bœuf bourguignon",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Boeuf bourguignon, préemballé",
+  "alim_code": "25033",
+  "glucides": [
+   5,
+   4.17
+  ],
+  "kcal": [
+   130,
+   84.3
+  ]
+ },
+ {
+  "aliment": "Pot-au-feu",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Pot-au-feu, préemballé",
+  "alim_code": "25013",
+  "glucides": [
+   6,
+   3.2
+  ],
+  "kcal": [
+   90,
+   77.5
+  ]
+ },
+ {
+  "aliment": "Tarte aux légumes",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Tarte aux légumes, préemballée",
+  "alim_code": "25417",
+  "glucides": [
+   18,
+   21.8
+  ],
+  "kcal": [
+   200,
+   216
+  ]
+ },
+ {
+  "aliment": "Tofu nature",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Tofu nature, préemballé",
+  "alim_code": "20904",
+  "glucides": [
+   2,
+   2.87
+  ],
+  "kcal": [
+   120,
+   147
+  ]
+ },
+ {
+  "aliment": "Tempeh",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Tempeh",
+  "alim_code": "20917",
+  "glucides": [
+   9,
+   7.89
+  ],
+  "kcal": [
+   190,
+   157
+  ]
+ },
+ {
+  "aliment": "Pain sans gluten",
+  "categorie": "Pains & viennoiseries",
+  "ciqual": "Pain sans gluten, préemballé",
+  "alim_code": "7130",
+  "glucides": [
+   45,
+   37.1
+  ],
+  "kcal": [
+   260,
+   249
+  ]
+ },
+ {
+  "aliment": "Patate douce cuite",
+  "categorie": "Féculents, céréales & légumineuses",
+  "ciqual": "Patate douce, cuite",
+  "alim_code": "4102",
+  "glucides": [
+   20,
+   16.3
+  ],
+  "kcal": [
+   90,
+   79.1
+  ]
+ },
+ {
+  "aliment": "Haricots verts",
+  "categorie": "Légumes",
+  "ciqual": "Haricots verts, purée",
+  "alim_code": "20257",
+  "glucides": [
+   5,
+   4.2
+  ],
+  "kcal": [
+   30,
+   56.3
+  ]
+ },
+ {
+  "aliment": "Magret de canard",
+  "categorie": "Viandes, volailles & charcuterie",
+  "ciqual": "Canard, magret fumé",
+  "alim_code": "8111",
+  "glucides": [
+   0,
+   0.5
+  ],
+  "kcal": [
+   200,
+   362
+  ]
+ },
+ {
+  "aliment": "Jambon cru",
+  "categorie": "Viandes, volailles & charcuterie",
+  "ciqual": "Jambon cru",
+  "alim_code": "28800",
+  "glucides": [
+   0,
+   4.27
+  ],
+  "kcal": [
+   240,
+   239
+  ]
+ },
+ {
+  "aliment": "Saucisson sec",
+  "categorie": "Viandes, volailles & charcuterie",
+  "ciqual": "Saucisson sec",
+  "alim_code": "30300",
+  "glucides": [
+   1,
+   5.48
+  ],
+  "kcal": [
+   420,
+   418
+  ]
+ },
+ {
+  "aliment": "Boudin blanc",
+  "categorie": "Viandes, volailles & charcuterie",
+  "ciqual": "Boudin blanc, à cuire",
+  "alim_code": "8801",
+  "glucides": [
+   6,
+   3.64
+  ],
+  "kcal": [
+   290,
+   244
+  ]
+ },
+ {
+  "aliment": "Hareng fumé",
+  "categorie": "Poissons & fruits de mer",
+  "ciqual": "Hareng fumé, doux",
+  "alim_code": "25998",
+  "glucides": [
+   0,
+   0.44
+  ],
+  "kcal": [
+   215,
+   163
+  ]
+ },
+ {
+  "aliment": "Poisson pané",
+  "categorie": "Poissons & fruits de mer",
+  "ciqual": "Poisson pané, frit",
+  "alim_code": "26030",
+  "glucides": [
+   18,
+   13.5
+  ],
+  "kcal": [
+   200,
+   194
+  ]
+ },
+ {
+  "aliment": "Moules marinières",
+  "categorie": "Poissons & fruits de mer",
+  "ciqual": "Moules marinières (oignons et vin blanc), préemballées",
+  "alim_code": "10082",
+  "glucides": [
+   4,
+   7.43
+  ],
+  "kcal": [
+   90,
+   91.9
+  ]
+ },
+ {
+  "aliment": "Yaourt nature",
+  "categorie": "Œufs, laitages & fromages",
+  "ciqual": "Yaourt à la grecque nature",
+  "alim_code": "19860",
+  "glucides": [
+   5,
+   3.73
+  ],
+  "kcal": [
+   60,
+   103
+  ]
+ },
+ {
+  "aliment": "Fromage fondu en portion",
+  "categorie": "Œufs, laitages & fromages",
+  "ciqual": "Fromage fondu en portion (triangle), non enrichi",
+  "alim_code": "12303",
+  "glucides": [
+   6,
+   8.52
+  ],
+  "kcal": [
+   260,
+   238
+  ]
+ },
+ {
+  "aliment": "Biscuit fourré chocolat",
+  "categorie": "Sucré, desserts & goûter",
+  "ciqual": "Biscuit (génoise), fourré aux fruits (ex : orange, cerise…), nappé de chocolat",
+  "alim_code": "24686",
+  "glucides": [
+   68,
+   66.6
+  ],
+  "kcal": [
+   480,
+   395
+  ]
+ },
+ {
+  "aliment": "Chou à la crème",
+  "categorie": "Sucré, desserts & goûter",
+  "ciqual": "Chou à la crème pâtissière",
+  "alim_code": "23457",
+  "glucides": [
+   30,
+   34.9
+  ],
+  "kcal": [
+   290,
+   225
+  ]
+ },
+ {
+  "aliment": "Tarte aux fraises",
+  "categorie": "Sucré, desserts & goûter",
+  "ciqual": "Tarte aux fraises, artisanale",
+  "alim_code": "23491",
+  "glucides": [
+   30,
+   31
+  ],
+  "kcal": [
+   230,
+   318
+  ]
+ },
+ {
+  "aliment": "Bûche de Noël",
+  "categorie": "Sucré, desserts & goûter",
+  "ciqual": "Bûche de Noël pâtissière",
+  "alim_code": "23030",
+  "glucides": [
+   35,
+   39.8
+  ],
+  "kcal": [
+   300,
+   363
+  ]
+ },
+ {
+  "aliment": "Vin blanc sec",
+  "categorie": "Boissons",
+  "ciqual": "Vin blanc sec",
+  "alim_code": "5215",
+  "glucides": [
+   1,
+   0.17
+  ],
+  "kcal": [
+   82,
+   55.3
+  ]
+ },
+ {
+  "aliment": "Moutarde",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Moutarde",
+  "alim_code": "11013",
+  "glucides": [
+   5,
+   4.33
+  ],
+  "kcal": [
+   65,
+   151
+  ]
+ },
+ {
+  "aliment": "Sauce barbecue",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Sauce barbecue, préemballée",
+  "alim_code": "11100",
+  "glucides": [
+   40,
+   30.3
+  ],
+  "kcal": [
+   170,
+   136
+  ]
+ },
+ {
+  "aliment": "Croissant jambon-fromage",
+  "categorie": "Fast-food & sandwichs",
+  "ciqual": "Croissant au jambon fromage, préemballé",
+  "alim_code": "26266",
+  "glucides": [
+   32,
+   22
+  ],
+  "kcal": [
+   320,
+   258
+  ]
+ },
+ {
+  "aliment": "Yakitori",
+  "categorie": "Cuisine du monde",
+  "ciqual": "Yakitori (brochettes japonaises grillées en sauce)",
+  "alim_code": "25565",
+  "glucides": [
+   6,
+   9.3
+  ],
+  "kcal": [
+   180,
+   172
+  ]
+ },
+ {
+  "aliment": "Porc au caramel",
+  "categorie": "Cuisine du monde",
+  "ciqual": "Porc au caramel, préemballé",
+  "alim_code": "25207",
+  "glucides": [
+   18,
+   11.4
+  ],
+  "kcal": [
+   200,
+   136
+  ]
+ },
+ {
+  "aliment": "Pan bagnat",
+  "categorie": "Spécialités régionales françaises",
+  "ciqual": "Pan bagnat",
+  "alim_code": "25513",
+  "glucides": [
+   22,
+   27.8
+  ],
+  "kcal": [
+   190,
+   205
+  ]
+ },
+ {
+  "aliment": "Potée auvergnate",
+  "categorie": "Spécialités régionales françaises",
+  "ciqual": "Potée auvergnate (chou et porc)",
+  "alim_code": "25071",
+  "glucides": [
+   8,
+   4.85
+  ],
+  "kcal": [
+   120,
+   115
+  ]
+ },
+ {
+  "aliment": "Ficelle picarde",
+  "categorie": "Spécialités régionales françaises",
+  "ciqual": "Ficelle picarde, préemballée",
+  "alim_code": "26256",
+  "glucides": [
+   18,
+   11.9
+  ],
+  "kcal": [
+   180,
+   151
+  ]
+ },
+ {
+  "aliment": "Canelé",
+  "categorie": "Spécialités régionales françaises",
+  "ciqual": "Canelé",
+  "alim_code": "23022",
+  "glucides": [
+   42,
+   61
+  ],
+  "kcal": [
+   300,
+   298
+  ]
+ },
+ {
+  "aliment": "Bœuf carottes",
+  "categorie": "Spécialités régionales françaises",
+  "ciqual": "Boeuf aux carottes, préemballé",
+  "alim_code": "25065",
+  "glucides": [
+   7,
+   2.91
+  ],
+  "kcal": [
+   110,
+   95
+  ]
+ },
+ {
+  "aliment": "Petit salé aux lentilles",
+  "categorie": "Spécialités régionales françaises",
+  "ciqual": "Petit salé ou saucisse aux lentilles, préemballé",
+  "alim_code": "25010",
+  "glucides": [
+   12,
+   8.89
+  ],
+  "kcal": [
+   145,
+   118
+  ]
+ },
+ {
+  "aliment": "Croissant amandes",
+  "categorie": "Petit-déjeuner & tartines",
+  "ciqual": "Croissant aux amandes, artisanal",
+  "alim_code": "7650",
+  "glucides": [
+   42,
+   36.5
+  ],
+  "kcal": [
+   450,
+   449
+  ]
+ },
+ {
+  "aliment": "Concentré de tomate",
+  "categorie": "Épicerie, farines & basiques",
+  "ciqual": "Tomate, concentré, appertisé",
+  "alim_code": "20068",
+  "glucides": [
+   15,
+   17.1
+  ],
+  "kcal": [
+   80,
+   99.2
+  ]
+ },
+ {
+  "aliment": "Son d'avoine",
+  "categorie": "Épicerie, farines & basiques",
+  "ciqual": "Son d&apos;avoine",
+  "alim_code": "9640",
+  "glucides": [
+   10,
+   50.6
+  ],
+  "kcal": [
+   240,
+   361
+  ]
+ },
+ {
+  "aliment": "Vin de cuisine",
+  "categorie": "Épicerie, farines & basiques",
+  "ciqual": "Vin cuisiné (alcool évaporé)",
+  "alim_code": "5217",
+  "glucides": [
+   2,
+   3.66
+  ],
+  "kcal": [
+   80,
+   15
+  ]
+ },
+ {
+  "aliment": "Purée de brocoli",
+  "categorie": "Légumes",
+  "ciqual": "Brocoli, purée",
+  "alim_code": "20259",
+  "glucides": [
+   5,
+   2.75
+  ],
+  "kcal": [
+   60,
+   29
+  ]
+ },
+ {
+  "aliment": "Mascarpone",
+  "categorie": "Œufs, laitages & fromages",
+  "ciqual": "Mascarpone",
+  "alim_code": "19584",
+  "glucides": [
+   4,
+   3.1
+  ],
+  "kcal": [
+   430,
+   369
+  ]
+ },
+ {
+  "aliment": "Yaourt 0 % nature",
+  "categorie": "Œufs, laitages & fromages",
+  "ciqual": "Yaourt à la grecque nature",
+  "alim_code": "19860",
+  "glucides": [
+   4,
+   3.73
+  ],
+  "kcal": [
+   45,
+   103
+  ]
+ },
+ {
+  "aliment": "Faisselle",
+  "categorie": "Œufs, laitages & fromages",
+  "ciqual": "Faisselle, 0% MG",
+  "alim_code": "19639",
+  "glucides": [
+   3,
+   4.65
+  ],
+  "kcal": [
+   80,
+   36.8
+  ]
+ },
+ {
+  "aliment": "Crème anglaise",
+  "categorie": "Œufs, laitages & fromages",
+  "ciqual": "Crème anglaise, préemballée",
+  "alim_code": "39700",
+  "glucides": [
+   18,
+   14.8
+  ],
+  "kcal": [
+   120,
+   97.3
+  ]
+ },
+ {
+  "aliment": "Filet mignon de porc",
+  "categorie": "Viandes, volailles & charcuterie",
+  "ciqual": "Porc, filet mignon cuit",
+  "alim_code": "28203",
+  "glucides": [
+   0,
+   0
+  ],
+  "kcal": [
+   140,
+   168
+  ]
+ },
+ {
+  "aliment": "Saucisse de Morteau",
+  "categorie": "Viandes, volailles & charcuterie",
+  "ciqual": "Saucisse de Morteau",
+  "alim_code": "30104",
+  "glucides": [
+   1,
+   1.17
+  ],
+  "kcal": [
+   300,
+   398
+  ]
+ },
+ {
+  "aliment": "Saint-Pierre",
+  "categorie": "Poissons & fruits de mer",
+  "ciqual": "Pouligny Saint-Pierre (fromage de chèvre)",
+  "alim_code": "12839",
+  "glucides": [
+   0,
+   1.38
+  ],
+  "kcal": [
+   85,
+   286
+  ]
+ },
+ {
+  "aliment": "Croquette de pomme de terre",
+  "categorie": "Féculents, céréales & légumineuses",
+  "ciqual": "Croquette de pomme de terre, surgelée, à cuire",
+  "alim_code": "4049",
+  "glucides": [
+   24,
+   22.4
+  ],
+  "kcal": [
+   225,
+   164
+  ]
+ },
+ {
+  "aliment": "Mille-feuille",
+  "categorie": "Sucré, desserts & goûter",
+  "ciqual": "Mille-feuille",
+  "alim_code": "24666",
+  "glucides": [
+   33,
+   43.7
+  ],
+  "kcal": [
+   290,
+   292
+  ]
+ },
+ {
+  "aliment": "Nougat glacé",
+  "categorie": "Sucré, desserts & goûter",
+  "ciqual": "Nougat glacé",
+  "alim_code": "39529",
+  "glucides": [
+   30,
+   26.4
+  ],
+  "kcal": [
+   290,
+   249
+  ]
+ },
+ {
+  "aliment": "Chewing-gum sucré",
+  "categorie": "Sucré, desserts & goûter",
+  "ciqual": "Chewing-gum, sucré",
+  "alim_code": "31007",
+  "glucides": [
+   70,
+   86.4
+  ],
+  "kcal": [
+   300,
+   360
+  ]
+ },
+ {
+  "aliment": "Bière blanche",
+  "categorie": "Boissons",
+  "ciqual": "Bière blanche",
+  "alim_code": "5009",
+  "glucides": [
+   4,
+   7.55
+  ],
+  "kcal": [
+   45,
+   60.9
+  ]
+ },
+ {
+  "aliment": "Sauce roquefort",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Sauce au roquefort, préemballée",
+  "alim_code": "11191",
+  "glucides": [
+   4,
+   4.4
+  ],
+  "kcal": [
+   220,
+   128
+  ]
+ },
+ {
+  "aliment": "Sauce champignons",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Sauce aux champignons, préemballée",
+  "alim_code": "11160",
+  "glucides": [
+   6,
+   6.3
+  ],
+  "kcal": [
+   120,
+   98.8
+  ]
+ },
+ {
+  "aliment": "Sauce samouraï",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Sauce samouraï, préemballée",
+  "alim_code": "11246",
+  "glucides": [
+   10,
+   5.09
+  ],
+  "kcal": [
+   420,
+   523
+  ]
+ },
+ {
+  "aliment": "Sauce algérienne",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Sauce algérienne, préemballée",
+  "alim_code": "11240",
+  "glucides": [
+   12,
+   14
+  ],
+  "kcal": [
+   400,
+   486
+  ]
+ },
+ {
+  "aliment": "Sauce andalouse",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Sauce andalouse, préemballée",
+  "alim_code": "11243",
+  "glucides": [
+   9,
+   8.03
+  ],
+  "kcal": [
+   420,
+   548
+  ]
+ },
+ {
+  "aliment": "Sauce burger",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Sauce burger, préemballée",
+  "alim_code": "11196",
+  "glucides": [
+   15,
+   13.2
+  ],
+  "kcal": [
+   350,
+   427
+  ]
+ },
+ {
+  "aliment": "Sauce hollandaise",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Sauce hollandaise, préemballée",
+  "alim_code": "11105",
+  "glucides": [
+   3,
+   3.2
+  ],
+  "kcal": [
+   420,
+   197
+  ]
+ },
+ {
+  "aliment": "Gratin de chou-fleur",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Gratin de chou-fleur, préemballé",
+  "alim_code": "25101",
+  "glucides": [
+   6,
+   3.3
+  ],
+  "kcal": [
+   110,
+   86.3
+  ]
+ },
+ {
+  "aliment": "Soufflé au fromage",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Soufflé au fromage",
+  "alim_code": "25020",
+  "glucides": [
+   9,
+   4.75
+  ],
+  "kcal": [
+   190,
+   185
+  ]
+ },
+ {
+  "aliment": "Chou farci",
+  "categorie": "Plats préparés & cuisine maison",
+  "ciqual": "Chou farci, préemballé",
+  "alim_code": "25106",
+  "glucides": [
+   9,
+   2
+  ],
+  "kcal": [
+   120,
+   94.9
+  ]
+ },
+ {
+  "aliment": "Boudin noir",
+  "categorie": "Viandes, volailles & charcuterie",
+  "ciqual": "Boudin noir, à cuire",
+  "alim_code": "8703",
+  "glucides": [
+   3,
+   0.29
+  ],
+  "kcal": [
+   300,
+   297
+  ]
+ },
+ {
+  "aliment": "Sauce soja",
+  "categorie": "Sauces, matières grasses & apéro",
+  "ciqual": "Sauce soja, préemballée",
+  "alim_code": "11104",
+  "glucides": [
+   5,
+   1.72
+  ],
+  "kcal": [
+   55,
+   39.9
+  ]
+ },
+ {
+  "aliment": "Poulet basquaise",
+  "categorie": "Spécialités régionales françaises",
+  "ciqual": "Poulet basquaise, préemballé",
+  "alim_code": "25190",
+  "glucides": [
+   8,
+   2.5
+  ],
+  "kcal": [
+   120,
+   107
+  ]
+ },
+ {
+  "aliment": "Fond de veau",
+  "categorie": "Épicerie, farines & basiques",
+  "ciqual": "Fond de veau, préemballé",
+  "alim_code": "11304",
+  "glucides": [
+   8,
+   2.4
+  ],
+  "kcal": [
+   70,
+   40.9
+  ]
+ },
+ {
+  "aliment": "Rhubarbe cuite",
+  "categorie": "Fruits",
+  "ciqual": "Rhubarbe, tige, cuite",
+  "alim_code": "13203",
+  "glucides": [
+   7,
+   1.35
+  ],
+  "kcal": [
+   30,
+   18.8
+  ]
+ },
+ {
+  "aliment": "Brochette de bœuf",
+  "categorie": "Viandes, volailles & charcuterie",
+  "ciqual": "Brochette de boeuf, cuite",
+  "alim_code": "25585",
+  "glucides": [
+   2,
+   0.33
+  ],
+  "kcal": [
+   180,
+   136
+  ]
+ },
+ {
+  "aliment": "Kir",
+  "categorie": "Boissons",
+  "ciqual": "Kir (vin blanc, crème de cassis)",
+  "alim_code": "1018",
+  "glucides": [
+   12,
+   3.3
+  ],
+  "kcal": [
+   120,
+   74.7
+  ]
+ }
+]

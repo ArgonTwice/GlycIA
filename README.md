@@ -112,9 +112,34 @@ Le workflow `release.yml` crée la release et y attache `standalone.html` ainsi 
 
 ## Données
 
-Valeurs de composition moyennes issues des tables de référence et de l'étiquetage fabricant (2026). Complétées à la volée par Open Food Facts (ODbL).
+### Sources
 
-Ce sont des **estimations** : recettes maison, marques et tailles de portion font varier ces chiffres.
+| Donnée | Source | Version |
+|---|---|---|
+| Glucides et calories aux 100 g | [Table Ciqual](https://ciqual.anses.fr/), ANSES — [doi:10.57745/RDMHWY](https://entrepot.recherche.data.gouv.fr/dataset.xhtml?persistentId=doi:10.57745/RDMHWY) | 2025 (3 484 aliments) |
+| Index glycémique | [International Tables of Glycemic Index and Glycemic Load Values](https://ajcn.nutrition.org/article/S0002-9165(22)00494-4/fulltext), Atkinson & Brand-Miller, *AJCN* | 2021 |
+| Seuils IG (bas ≤ 55, moyen 56–69, élevé ≥ 70) | Convention des mêmes tables | 2021 |
+| Repères fibres, fruits et légumes, sucres libres | [OMS, apports en glucides](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates) | 2023 |
+| Produits emballés scannés | [Open Food Facts](https://world.openfoodfacts.org/) (ODbL) | en ligne |
+
+Ciqual est aussi la source de [Gluci-Chek](https://www.accu-chek.fr/produits/application/gluci-chek), l'application de comptage de Roche : ce n'est pas une base concurrente, c'est la même référence.
+
+Ciqual ne publie **pas** d'index glycémique — d'où la seconde source, et le fait que l'IG ne soit jamais modifié par l'outil d'audit.
+
+### Vérifier les valeurs
+
+```bash
+node tools/audit-ciqual.mjs          # rapport, n'écrit rien
+node tools/audit-ciqual.mjs --apply  # aligne les valeurs sûres sur Ciqual
+```
+
+L'outil télécharge Ciqual, apparie les aliments par nom et signale les écarts. Il refuse les appariements douteux : un nom qui ressemble ne suffit pas (« Blanc d'œuf » s'apparie sinon à « Pain blanc »), l'état doit correspondre (le riz cru affiche trois fois les glucides du riz cuit) et les négations doivent concorder (« sans sucre » ≠ « sucré »). Les changements appliqués sont journalisés dans `tools/ciqual-corrections.json`.
+
+### Ce que ces chiffres valent
+
+Ce sont des **estimations**. Les valeurs de l'app décrivent l'aliment **prêt à manger**, pas cru — c'est ce qui compte dans une assiette, mais ça diffère de la ligne Ciqual correspondante pour tous les féculents. Recettes maison, marques et tailles de portion font varier le reste.
+
+Sur les 1 042 aliments, 827 n'ont pas d'équivalent Ciqual : produits de marque, plats de chaîne et sandwichs, dont les valeurs viennent de l'étiquetage.
 
 ## Avertissement
 

@@ -15,7 +15,11 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const round = (n, d = 0) => { const p = 10 ** d; return Math.round(n * p) / p; };
 
 /* ---------- Repère quotidien indicatif ---------- */
-let REPERE = 180; // g de glucides, purement indicatif — ajusté après l'onboarding (voir repereFor())
+/* g de glucides, purement indicatif — ajusté après l'onboarding (voir repereFor()).
+   Ce n'est ni un chiffre de l'OMS ni de l'ANSES : aucune institution ne publie
+   de cible en grammes pour une personne diabétique. C'est un ordre de grandeur
+   d'affichage, pour donner une échelle à l'anneau. Jamais un objectif. */
+let REPERE = 180;
 
 /* ==========================================================================
    1. MASCOTTE — SVG généré, expressions contextuelles
@@ -1325,7 +1329,14 @@ paintCake();
 /* ==========================================================================
    14. BASE ALIMENTS
    Format compact : [nom, glucides/100 g, IG, kcal/100 g, poids portion g, libellé portion]
-   Valeurs de composition moyennes (table CIQUAL, étiquetage fabricant 2026).
+
+   Glucides et calories : table Ciqual 2025 de l'ANSES (doi:10.57745/RDMHWY),
+   complétée par l'étiquetage fabricant pour les produits de marque et les
+   plats de chaîne, absents de Ciqual. Les valeurs décrivent l'aliment PRÊT À
+   MANGER, pas cru : c'est ce qu'on a dans l'assiette.
+   Index glycémique : International Tables of Glycemic Index 2021 (Atkinson &
+   Brand-Miller, AJCN) — Ciqual n'en publie pas.
+   Confrontation à Ciqual : node tools/audit-ciqual.mjs
    ========================================================================== */
 
 /* Extension de la bible — fusionnée dans FOODDB */
@@ -3800,6 +3811,31 @@ function renderSettings() {
         <button class="btn btn-primary" id="nsSave"><svg><use href="#i-check"/></svg> Enregistrer</button>
       </div>
       <div id="nsTest"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="sect-head"><h3 style="font-size:17px">D'où viennent les chiffres</h3></div>
+      <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.5">
+        Glucides et calories : <b>table Ciqual 2025</b> de l'ANSES, la même référence que Gluci-Chek.
+        Index glycémique : <b>International Tables of Glycemic Index 2021</b> — Ciqual n'en publie pas.
+        Les produits de marque et les plats de chaîne viennent de l'étiquetage.
+      </p>
+      <p class="foot-note" style="text-align:left;margin-top:10px">
+        Les valeurs décrivent l'aliment <b>prêt à manger</b>, pas cru. Ce sont des estimations :
+        recettes, marques et portions font varier ces chiffres.
+      </p>
+      <div class="eyebrow" style="margin:16px 0 8px">Repères de l'OMS, 2023</div>
+      <div class="fgrid">
+        <div><b style="color:var(--sage-deep)">25 g</b><span>Fibres / jour</span></div>
+        <div><b style="color:var(--sage-deep)">400 g</b><span>Fruits+légumes / j</span></div>
+        <div><b style="color:var(--peach-deep)">&lt; 10 %</b><span>Sucres libres</span></div>
+      </div>
+      <p class="foot-note" style="text-align:left">
+        Population générale, à titre d'information — pas des objectifs à tenir, et rien à voir avec
+        une consigne pour ton diabète. Les sucres libres se comptent en part de l'apport énergétique,
+        soit environ 50 g pour 2000 kcal. Le repère de ${REPERE} g affiché sur l'anneau, lui,
+        n'est pas un chiffre officiel : c'est une échelle d'affichage, aucune institution ne publie
+        de cible en grammes.
+      </p>
     </div>
     <div class="card" style="margin-top:12px">
       <div class="sect-head"><h3 style="font-size:17px">Tes données</h3></div>
