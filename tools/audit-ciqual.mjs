@@ -33,6 +33,8 @@ const FICHIERS = { alim: 666252, const: 666246, compo: 666249 };
 const URL = id => `https://entrepot.recherche.data.gouv.fr/api/access/datafile/${id}`;
 const C_KCAL = '328';      // Energie, Règlement UE N° 1169/2011 (kcal/100 g)
 const C_GLUC = '31000';    // Glucides (g/100 g)
+const C_LIP  = '40000';    // Lipides (g/100 g) — pilote le mode gastroparésie
+const CONSTITUANTS = new Set([C_KCAL, C_GLUC, C_LIP]);
 
 const APPLY = process.argv.includes('--apply');
 const ALL = process.argv.includes('--all');
@@ -85,11 +87,11 @@ const compo = new Map();
 for (const m of (await fichier('compo')).matchAll(
   /<alim_code>\s*(\d+)\s*<\/alim_code>\s*<const_code>\s*(\d+)\s*<\/const_code>\s*<teneur>\s*([^<]*?)\s*<\/teneur>/g)) {
   const [, code, cst, raw] = m;
-  if (cst !== C_KCAL && cst !== C_GLUC) continue;
+  if (!CONSTITUANTS.has(cst)) continue;
   const v = parseFloat(String(raw).replace(',', '.').replace(/[<>]/g, '').trim());
   if (!isFinite(v)) continue;
   const e = compo.get(code) || {};
-  if (cst === C_KCAL) e.kcal = v; else e.gluc = v;
+  if (cst === C_KCAL) e.kcal = v; else if (cst === C_GLUC) e.gluc = v; else e.lip = v;
   compo.set(code, e);
 }
 
@@ -131,7 +133,7 @@ function apparier(nom) {
 const db = JSON.parse(fs.readFileSync(DB, 'utf8'));
 const SEUIL_REL = 0.15, SEUIL_ABS = 2;   // en deçà, l'écart n'est pas significatif
 
-const corrections = [], aTrancher = [], ignores = new Map();
+const corrections = [], aTrancher = [], enrichis = [], ignores = new Map();
 let total = 0;
 
 for (const bloc of ['FOODDB', 'FOODDB2']) {
@@ -141,6 +143,10 @@ for (const bloc of ['FOODDB', 'FOODDB2']) {
       const [nom, gluc, , kcal] = a;
       const { top, skip } = apparier(nom);
       if (skip) { ignores.set(skip, (ignores.get(skip) || 0) + 1); continue; }
+      /* Les lipides s'ajoutent dès qu'il y a un appariement sûr : ce n'est pas
+         une correction mais un champ que la base n'avait pas. Ils pilotent le
+         classement gastroparésie, jusqu'ici déduit des calories. */
+      if (top.lip !== undefined && a[6] !== top.lip) enrichis.push({ ref: a, nom, lip: top.lip });
       const dG = Math.abs(gluc - top.gluc), dK = Math.abs(kcal - top.kcal);
       const sigG = dG > SEUIL_ABS && dG / Math.max(1, top.gluc) > SEUIL_REL;
       const sigK = dK > 15 && dK / Math.max(1, top.kcal) > SEUIL_REL;
@@ -164,6 +170,7 @@ console.log(`écartés :`);
 const fmt = l => `  ${l.nom}\n      CIQUAL « ${l.ciqual} » (${l.code}, couverture ${l.couverture})\n`
   + `      glucides ${l.gluc[0]} → ${l.gluc[1]}   |   kcal ${l.kcal[0]} → ${l.kcal[1]}`;
 
+console.log(`\n${enrichis.length} aliment(s) à enrichir de leurs lipides Ciqual`);
 console.log(`\n${corrections.length} correction(s) sûre(s) :\n`);
 corrections.forEach(l => console.log(fmt(l)));
 if (ALL || !APPLY) {
@@ -175,14 +182,21 @@ if (APPLY) {
   /* --all applique aussi la liste à trancher : à ne faire qu'après l'avoir lue. */
   const aEcrire = ALL ? corrections.concat(aTrancher) : corrections;
   for (const l of aEcrire) { l.ref[1] = l.gluc[1]; l.ref[3] = Math.round(l.kcal[1]); }
+  /* 7e champ du format aliment : lipides g/100 g */
+  for (const e of enrichis) e.ref[6] = e.lip;
   /* db.json est minifié sur une seule ligne : on ne change pas ce format,
      le reformater ferait passer le fichier de 1 à 11 643 lignes. */
   fs.writeFileSync(DB, JSON.stringify(db));
-  const j = aEcrire.map(l => ({ aliment: l.nom, categorie: l.cat, ciqual: l.ciqual,
-                                alim_code: l.code, glucides: l.gluc, kcal: l.kcal }));
-  fs.writeFileSync(path.join(ROOT, 'tools', 'ciqual-corrections.json'), JSON.stringify(j, null, 1) + '\n');
-  console.log(`\n✓ ${aEcrire.length} valeurs alignées sur CIQUAL 2025, db.json réécrit`);
-  console.log(`✓ journal des changements : tools/ciqual-corrections.json`);
+  /* Le journal n'est réécrit que s'il y a des corrections : une exécution sans
+     écart ne doit pas effacer l'historique des précédentes. */
+  if (aEcrire.length) {
+    const j = aEcrire.map(l => ({ aliment: l.nom, categorie: l.cat, ciqual: l.ciqual,
+                                  alim_code: l.code, glucides: l.gluc, kcal: l.kcal }));
+    fs.writeFileSync(path.join(ROOT, 'tools', 'ciqual-corrections.json'), JSON.stringify(j, null, 1) + '\n');
+  }
+  console.log(`\n✓ ${aEcrire.length} valeurs alignées sur CIQUAL 2025`);
+  console.log(`✓ ${enrichis.length} aliments enrichis de leurs lipides`);
+  console.log(`✓ db.json réécrit, journal : tools/ciqual-corrections.json`);
 } else {
   console.log(`\n(rapport seul — relancer avec --apply pour écrire, --apply --all pour inclure les cas relus)`);
 }

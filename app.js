@@ -1374,7 +1374,10 @@ Object.entries(FOODDB).forEach(([cat, list]) => list.forEach(a => {
   const key = normalize(a[0]);
   if (seenF.has(key)) return;
   seenF.add(key);
-  ALL.push({ n:a[0], cat, c:a[1], ig:a[2], kcal:a[3], pw:a[4], pl:a[5], k:normalize(a[0] + ' ' + cat) });
+  /* a[6] : lipides g/100 g, présent quand Ciqual les publie pour cet aliment.
+     Absent = valeur inconnue, gpFat() retombe alors sur son estimation. */
+  ALL.push({ n:a[0], cat, c:a[1], ig:a[2], kcal:a[3], pw:a[4], pl:a[5], lip:a[6],
+             k:normalize(a[0] + ' ' + cat) });
 }));
 
 const CATS = Object.keys(FOODDB);
@@ -3550,7 +3553,13 @@ const GP_CAT = {
 /* Lipides estimés pour 100 g : ce qui reste des calories une fois les glucides
    et une protéine forfaitaire retirés. Grossier, mais le gras est LE facteur
    qui ralentit la vidange, il faut bien le capter. */
-const gpFat = f => Math.max(0, (f.kcal || 0) - (f.c || 0) * 4 - 60) / 9;
+/* Lipides aux 100 g. Ciqual les publie (constituant 40000) : quand la valeur
+   est là on l'utilise telle quelle. Sinon on retombe sur l'ancienne déduction
+   à partir des calories — grossière, mais le gras est LE facteur qui ralentit
+   la vidange, mieux vaut l'estimer que l'ignorer. */
+const gpFat = f => isFinite(f.lip) ? +f.lip
+  : Math.max(0, (f.kcal || 0) - (f.c || 0) * 4 - 60) / 9;
+const gpFatMesure = f => isFinite(f.lip);
 
 function gpLevel(f) {
   if (f._gp) return f._gp;
@@ -3570,6 +3579,11 @@ function gpLevel(f) {
 }
 const GP_MARK = { 1:['ok','✅','Bien toléré'], 2:['mid','⚠️','Avec prudence'], 3:['no','⛔','À éviter'] };
 
+/* On dit d'où vient le chiffre : mesuré par Ciqual, ou déduit des calories. */
+const lipLabel = (fat, f) => gpFatMesure(f)
+  ? `${round(fat, 1)} g de lipides pour 100 g (Ciqual)`
+  : `Environ ${Math.round(fat)} g de lipides pour 100 g, estimé d’après les calories`;
+
 /* Pourquoi cet aliment est classé ainsi. Descriptif, jamais prescriptif :
    on explique un mécanisme, on ne dit pas quoi manger. */
 function gpReason(f) {
@@ -3582,14 +3596,14 @@ function gpReason(f) {
   const out = [...reds];
 
   if (lv === 3) {
-    if (fat > 20) out.push(`Environ ${Math.round(fat)} g de lipides pour 100 g, estimé d’après les calories : le gras est le premier frein à la vidange de l’estomac.`);
+    if (fat > 20) out.push(`${lipLabel(fat, f)} : le gras est le premier frein à la vidange de l’estomac.`);
     if (!out.length) out.push(GP_CAT_WHY[f.cat] || 'Plat composé, souvent gras ou fibreux, long à réduire en bouillie.');
     if (green) out.push('Mixé ou allongé de bouillon, le même aliment passe souvent mieux.');
   } else if (lv === 1) {
     out.length = 0;
     out.push(green ? green[1] : 'Texture tendre et peu de gras : l’estomac n’a presque rien à broyer.');
   } else {
-    if (fat > 12) out.push(`Environ ${Math.round(fat)} g de lipides pour 100 g, estimé d’après les calories : de quoi ralentir un peu la vidange.`);
+    if (fat > 12) out.push(`${lipLabel(fat, f)} : de quoi ralentir un peu la vidange.`);
     if (!out.length) out.push('Ni texture lisse ni frein marqué : la tolérance dépendra surtout de la quantité et de la cuisson.');
   }
   return out;

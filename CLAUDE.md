@@ -15,7 +15,9 @@ Voir `ROADMAP.md` : chaque bloc est une specification autonome, prete a implemen
 ## Regles
 - Aucune dependance externe hors Google Fonts. Pas de framework, pas de bundler.
 - Toute donnee alimentaire va dans `db.json`, jamais en dur dans `app.js`.
-- Format aliment : `[nom, glucides/100g, IG, kcal/100g, poids portion, libelle portion]`.
+- Format aliment : `[nom, glucides/100g, IG, kcal/100g, poids portion, libelle portion, lipides/100g?]`.
+  Le 7e champ est facultatif : present quand Ciqual publie les lipides, absent sinon.
+  Il pilote le classement gastroparesie ; sans lui, `gpFat()` les deduit des calories.
 - Les appels a api.anthropic.com passent tous par `aiHeaders()`. Jamais de cle en dur.
 - Chaque fonction reseau doit degrader proprement : base locale en secours, jamais d'ecran vide.
 - Zero contenu culpabilisant : c'est le principe de l'app. Pas de score, pas d'interdit.
