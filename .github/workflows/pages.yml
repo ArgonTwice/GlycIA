@@ -64,7 +64,7 @@ jobs:
       - name: Assembler le site publié
         run: |
           mkdir -p _site
-          cp index.html app.js db.json ciqual.json sw.js icon.svg manifest.webmanifest standalone.html _site/
+          cp index.html app.js db.json ciqual.json off-fr.json sw.js icon.svg manifest.webmanifest standalone.html _site/
           echo "Publie : $(ls _site | tr '\n' ' ')"
 
       - uses: actions/configure-pages@v5

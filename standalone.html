@@ -3140,7 +3140,7 @@ const CAT_ICON = {
   'Spécialités régionales françaises':'🇫🇷','Petit-déjeuner & tartines':'🥐',
   'Épicerie, farines & basiques':'🧂','Sans gluten, végétarien & spécifique':'🌱',
   'Sport & diététique':'💪','Trouvés en ligne':'🌐','Ajoutés par Claude':'✨',
-  'Mes produits':'🛒','Table Ciqual':'📗','FoodData Central':'🇺🇸'
+  'Mes produits':'🛒','Table Ciqual':'📗','FoodData Central':'🇺🇸','Produits France':'🇫🇷'
 };
 
 /* Corrections en boucle courte : ouvre une issue GitHub pré-remplie, une Action ouvre la PR sur db.json */
@@ -3204,7 +3204,11 @@ $('#foodQ').addEventListener('input', e => {
      On s'arrête dès qu'il y a de quoi répondre. */
   if (fq.length >= 3 && matchFoods().length < 6) offTimer = setTimeout(async () => {
     if (await ensureCiqual()) {
-      renderFoods(`Table Ciqual ouverte — ${ALL.length} aliments disponibles`);
+      renderFoods(`Table Ciqual ouverte — ${ALL.length.toLocaleString('fr-FR')} aliments`);
+      if (matchFoods().length >= 6) return;
+    }
+    if (await ensureOffFr()) {
+      renderFoods(`Produits français ouverts — ${ALL.length.toLocaleString('fr-FR')} aliments hors ligne`);
       if (matchFoods().length >= 6) return;
     }
     await offSearch(fq);
@@ -3294,6 +3298,37 @@ function ensureCiqual() {
     } finally { ciqualEnCours = null; }
   })();
   return ciqualEnCours;
+}
+
+/* ---------- Produits français d'Open Food Facts, à la demande ----------
+   Les produits de supermarché réellement vendus en France, classés par
+   nombre de scans : ce qu'on a dans son placard, pas un échantillon au
+   hasard. Plus lourd que la table Ciqual, donc jamais chargé d'office —
+   seulement quand une recherche dépasse ce qui est déjà là.
+   Données sous licence ODbL, attribution dans les Réglages et le README. */
+const OFFFR_CAT = 'Produits France';
+let offFrCharge = false, offFrEnCours = null;
+
+function ensureOffFr() {
+  if (offFrCharge) return Promise.resolve(false);
+  if (offFrEnCours) return offFrEnCours;
+  offFrEnCours = (async () => {
+    try {
+      const r = await fetch(new URL('./off-fr.json', import.meta.url));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      for (const [n, c, kcal, lip, code] of d.aliments) {
+        registerFood({ n, cat: OFFFR_CAT, c, ig: guessIG(n, c), kcal,
+                       pw: 100, pl: '100 g', lip, code, off: true, igEst: true,
+                       k: normalize(n + ' ' + OFFFR_CAT) });
+      }
+      offFrCharge = true;
+      return true;
+    } catch (_) {
+      return false;
+    } finally { offFrEnCours = null; }
+  })();
+  return offFrEnCours;
 }
 
 /* Un produit Open Food Facts -> une entrée de la base, quelle que soit la
@@ -3451,7 +3486,7 @@ async function offSearch(q) {
    remplissent pas la liste par défaut : sans ça, parcourir « Tout » donne
    « Abricot au sirop, appertisé, non égoutté » avant les aliments courants.
    Elles restent accessibles par leur propre catégorie, et par la recherche. */
-const CATS_ETENDUES = new Set([CIQ_CAT, USDA_CAT, 'Trouvés en ligne']);
+const CATS_ETENDUES = new Set([CIQ_CAT, USDA_CAT, OFFFR_CAT, 'Trouvés en ligne']);
 function matchFoods() {
   let out = ALL.filter(f => (!fCat || f.cat === fCat) && (!fq || f.k.includes(fq)));
   if (!fq && !fCat) out = out.filter(f => !CATS_ETENDUES.has(f.cat));
@@ -3517,7 +3552,7 @@ function renderFoods(onlineMsg) {
         <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
         <div class="fsrc">${
             f.usda ? '🇺🇸 FoodData Central, USDA'
-          : f.off ? '🌐 Open Food Facts, valeur déclarée sur le paquet'
+          : f.off ? (f.code ? `🌐 Open Food Facts, valeur déclarée sur le paquet <a href="https://world.openfoodfacts.org/product/${f.code}" target="_blank" rel="noopener">code ${f.code}</a>` : '🌐 Open Food Facts, valeur déclarée sur le paquet')
           : f.ciq ? `📗 Table Ciqual 2025 de l’ANSES <a href="https://ciqual.anses.fr/#/aliments/${f.ciq}" target="_blank" rel="noopener">fiche ${f.ciq}</a>`
           : f.bar ? `🏷️ Étiquetage <a href="https://world.openfoodfacts.org/product/${f.bar}" target="_blank" rel="noopener">code ${f.bar}</a>`
           : '📊 Valeur générique — scanne le paquet pour celle de ton produit'}
@@ -5498,7 +5533,7 @@ const GP_CAT = {
   'Plats préparés & cuisine maison':2, 'Petit-déjeuner & tartines':2,
   'Épicerie, farines & basiques':2, 'Sans gluten, végétarien & spécifique':2,
   'Sport & diététique':2, 'Trouvés en ligne':2, 'Ajoutés par Claude':2, 'Mes produits':2,
-  'Table Ciqual':2, 'FoodData Central':2,
+  'Table Ciqual':2, 'FoodData Central':2, 'Produits France':2,
   'Fast-food & sandwichs':3, 'Sauces, matières grasses & apéro':3,
   'Cuisine du monde':3, 'Spécialités régionales françaises':3
 };
@@ -5802,8 +5837,10 @@ function renderSettings() {
       </div>
       <div class="eyebrow" style="margin:16px 0 8px">Élargir la recherche</div>
       <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45;margin-bottom:10px">
-        Quand un aliment manque, l'app ouvre la table Ciqual complète (3 128 aliments de plus),
-        puis interroge Open Food Facts, puis FoodData Central de l'USDA.
+        Quand un aliment manque, l'app ouvre la table Ciqual complète, puis les produits
+        français d'<a href="https://world.openfoodfacts.org/" target="_blank" rel="noopener">Open
+        Food Facts</a> — sous licence ODbL, classés par nombre de scans réels —
+        puis interroge Open Food Facts en ligne, puis FoodData Central de l'USDA.
         Cette dernière fonctionne sans rien configurer, mais avec un quota partagé.
         Une clé personnelle, gratuite sur <a href="https://fdc.nal.usda.gov/api-key-signup.html"
         target="_blank" rel="noopener">fdc.nal.usda.gov</a>, lève la limite.

@@ -129,10 +129,26 @@ L'app cherche du moins cher au plus cher, et s'arrête dès qu'elle a de quoi r�
 
 1. **`db.json`** — 1 042 aliments choisis, portions réalistes, chargé au démarrage.
 2. **`ciqual.json`** — les 3 128 autres aliments de la table de l'ANSES, 196 Ko chargés en tâche de fond une fois la page affichée, donc sans peser sur l'affichage initial. Ils sont cherchables mais ne remplissent pas la liste par défaut : parcourir « Tout » donnerait sinon « Abricot au sirop, appertisé, non égoutté » avant les aliments courants. Ils ont leur propre catégorie 📗.
-3. **Open Food Facts** — les produits emballés, par nom ou par code-barres.
-4. **FoodData Central** — ~600 000 aliments, surtout américains, pour ce qui manque ailleurs. Fonctionne sans configuration via un quota partagé ; une [clé gratuite](https://fdc.nal.usda.gov/api-key-signup.html) lève la limite.
+3. **`off-fr.json`** — les produits de supermarché vendus en France, extraits de l'export Open Food Facts et **classés par nombre de scans réels**. Chargé seulement quand la recherche dépasse les deux premiers niveaux. Le classement par scans est ce qui distingue une base utile d'une base volumineuse : ce sont les produits que les gens ont vraiment dans leur placard.
+4. **Open Food Facts en ligne** — le reste du catalogue, par nom ou par code-barres. Les produits trouvés sont conservés, donc disponibles hors ligne ensuite.
+5. **FoodData Central** — ~600 000 aliments, surtout américains, pour ce qui manque ailleurs. Fonctionne sans configuration via un quota partagé ; une [clé gratuite](https://fdc.nal.usda.gov/api-key-signup.html) lève la limite.
 
-Soit **4 170 aliments hors ligne** et plusieurs millions en ligne. Les aliments venus des niveaux 2 à 4 portent un IG estimé, jamais mesuré : aucune de ces tables ne le publie, et la fiche le dit.
+Les aliments venus des niveaux 2 à 5 portent un IG estimé, jamais mesuré : aucune de ces sources ne le publie, et la fiche le dit.
+
+### Régénérer les bases étendues
+
+```bash
+node tools/export-ciqual.mjs      # ciqual.json, depuis le cache de l'audit
+
+curl -sL https://static.openfoodfacts.org/data/fr.openfoodfacts.org.products.csv.gz \
+  | node --max-old-space-size=4096 tools/import-off-fr.mjs --max=50000
+```
+
+L'export d'Open Food Facts pèse 1,2 Go compressé. Il n'est jamais écrit sur disque : décompressé et filtré au fil du téléchargement, avec élagage périodique pour borner la mémoire — une première version sans cette borne mourait à 165 000 produits.
+
+### Licence des données
+
+Open Food Facts est publié sous [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/) : attribution et partage à l'identique. `off-fr.json` en dérive et porte son attribution. La table Ciqual de l'ANSES et FoodData Central de l'USDA sont librement réutilisables.
 
 `standalone.html` n'embarque que le noyau : sans serveur, les trois autres niveaux ne répondent pas.
 
