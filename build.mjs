@@ -20,8 +20,12 @@ inline = inline.replace(/navigator\.serviceWorker\.register\(new URL\('\.\/sw\.j
 /* 3. Injection dans la coquille */
 const TAG = '<script type="module" src="./app.js"></script>';
 if (!html.includes(TAG)) { console.error('✗ La balise script est introuvable dans index.html'); process.exit(1); }
+/* La fin de ligne doit être tolérée : sur un poste Windows index.html est
+   en CRLF, et une chaîne finissant par "\n" ne matchait pas. Le build
+   produisait alors un fichier différent de celui de la CI, qui le
+   régénérait et le recommittait à chaque push. */
 const out = html
-  .replace('<link rel="manifest" href="./manifest.webmanifest">\n', '')
+  .replace(/[ \t]*<link rel="manifest" href="\.\/manifest\.webmanifest">\r?\n/, '')
   .replace(TAG, () => '<script type="module">\n' + inline + '\n</script>');
 
 if (process.argv.includes('--check')) {
