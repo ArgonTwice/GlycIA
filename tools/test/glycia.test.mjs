@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import api from './harness.mjs';
 
 const {
-  normalize, clamp, round, fmtQ, igLabel, guessIG, withBrand,
+  normalize, clamp, round, fmtQ, igLabel, igClass, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, mealResponse, matchShoppingItem,
   computeTotals, toGl, fmtDur, IGP, state, ALL
@@ -29,6 +29,14 @@ describe('utilitaires', () => {
     assert.equal(igLabel(55), 'IG bas');
     assert.equal(igLabel(56), 'IG moyen');
     assert.equal(igLabel(70), 'IG élevé');
+  });
+  /* Piège : null < 56 est vrai. Sans garde, tout aliment sans IG connu
+     s'afficherait « IG bas » — le contresens le plus dangereux possible. */
+  test('un IG absent ne passe pas pour un IG bas', () => {
+    for (const v of [null, undefined, 0, NaN]) {
+      assert.equal(igLabel(v), 'IG inconnu', String(v));
+      assert.equal(igClass(v), '', String(v));
+    }
   });
   test('toGl convertit mg/dL en g/L à la française', () => {
     assert.equal(toGl(142), '1,42');
@@ -69,11 +77,13 @@ describe('Open Food Facts', () => {
       nutriments: { carbohydrates_100g: 480, 'energy-kcal_100g': 9000 }, serving_quantity: 5000 });
     assert.ok(f.c <= 100 && f.kcal <= 900 && f.pw <= 900, JSON.stringify(f));
   });
-  test('guessIG reste dans les bornes', () => {
-    for (const [nom, c] of [['soda cola', 11], ['lentilles', 20], ['inconnu', 0], ['pain', 55]]) {
-      const ig = guessIG(nom, c, 0, 0);
-      assert.ok(ig >= 0 && ig <= 100, `${nom} -> ${ig}`);
-    }
+  /* guessIG() devinait un IG a partir de mots-cles du nom. Supprime :
+     il fabriquait un chiffre d'apparence mesuree pour 53 000 aliments. */
+  test('les produits en ligne n’ont plus d’IG inventé', () => {
+    const f = api.offToEntry({ product_name_fr: 'Danette café', brands: 'Danone',
+      nutriments: { carbohydrates_100g: 17.5, 'energy-kcal_100g': 120 } });
+    assert.equal(f.ig, null);
+    assert.equal(f.c, 17.5);
   });
 });
 

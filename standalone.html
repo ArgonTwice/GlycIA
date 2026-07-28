@@ -1948,8 +1948,13 @@ function uid() { return 'x' + (++idc) + Date.now().toString(36); }
 
 const totalCarbs = () => state.journal.reduce((s, m) => s + m.carbs, 0);
 
+/* ig peut valoir null : c'est le cas des aliments venus des bases etendues,
+   ou personne ne publie d'index glycemique. On ne compte alors que les repas
+   qui en ont un, plutot que de faire passer une invention pour une mesure. */
+const aIg = v => v != null && isFinite(v) && v > 0;
+
 function avgIg() {
-  const w = state.journal.filter(m => m.carbs > 0);
+  const w = state.journal.filter(m => m.carbs > 0 && aIg(m.ig));
   if (!w.length) return null;
   const num = w.reduce((s, m) => s + m.ig * m.carbs, 0);
   const den = w.reduce((s, m) => s + m.carbs, 0);
@@ -1998,8 +2003,10 @@ function renderDay() {
   refreshBubble();
 }
 
-function igClass(ig) { return ig < 56 ? 'ig-low' : ig < 70 ? 'ig-mid' : 'ig-high'; }
-function igLabel(ig) { return ig < 56 ? 'IG bas' : ig < 70 ? 'IG moyen' : 'IG élevé'; }
+/* Sans ces gardes, null < 56 est vrai et tout aliment sans IG connu
+   s'afficherait « IG bas » — le pire des contresens possibles. */
+function igClass(ig) { return !aIg(ig) ? '' : ig < 56 ? 'ig-low' : ig < 70 ? 'ig-mid' : 'ig-high'; }
+function igLabel(ig) { return !aIg(ig) ? 'IG inconnu' : ig < 56 ? 'IG bas' : ig < 70 ? 'IG moyen' : 'IG élevé'; }
 const hhmm = d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 
 function renderTimeline() {
@@ -2025,8 +2032,8 @@ function renderTimeline() {
           </div>
           <div class="meal-stats">
             <span class="stat g">${m.carbs} g glucides</span>
-            <span class="stat ${igClass(m.ig)}">${igLabel(m.ig)} · ~${m.ig}</span>
-            <span class="stat">CG ${round(m.ig * m.carbs / 100)}</span>
+            <span class="stat ${igClass(m.ig)}">${igLabel(m.ig)}${aIg(m.ig) ? ' · ~' + m.ig : ''}</span>
+            ${aIg(m.ig) ? `<span class="stat">CG ${round(m.ig * m.carbs / 100)}</span>` : ''}
             ${p ? `<span class="stat ${igClass(p.ig)}">IG chez toi ~${p.ig}</span>` : ''}
           </div>
           ${mealCurve(m)}
@@ -2866,7 +2873,7 @@ function renderRecipe(r, matched) {
         <p style="font-size:14px;color:var(--ink-soft);line-height:1.45">${esc(r.note)}</p>
         <div class="chips">
           <span class="chip sage">${r.carbs} g glucides / part</span>
-          <span class="chip">${igLabel(r.ig)} · ${r.ig}</span>
+          <span class="chip">${igLabel(r.ig)}${aIg(r.ig) ? ' · ~' + r.ig : ''}</span>
           <span class="chip">CG ${cg}</span>
           <span class="chip">${r.time} min</span>
           <span class="chip">${r.portions} parts</span>
@@ -3244,23 +3251,14 @@ $('#foodMic').addEventListener('click', () => {
   try { rec.start(); } catch (_) { rec = null; $('#foodMic').classList.remove('rec'); }
 });
 
-/* ---------- Open Food Facts : ~4 millions de produits ---------- */
-function guessIG(txt, c, sug, fib) {
-  if (!c) return 0;
-  const t = normalize(txt);
-  const R = [[/soda|cola|limonade|sirop|energy/, 65], [/jus|nectar/, 50],
-    [/pain|baguette|biscotte|brioche|viennoiser|pizza|burger/, 70], [/riz/, 68],
-    [/pate|spaghetti|nouille|macaroni/, 50], [/pomme de terre|frite|puree|chips/, 72],
-    [/legume|salade|crudite/, 25], [/fruit|pomme|banane|orange/, 42],
-    [/lait|yaourt|fromage|creme|laitier/, 32], [/chocolat|biscuit|gateau|bonbon|confiserie|dessert/, 60],
-    [/lentille|pois|haricot|legumineuse|quinoa/, 32], [/viande|poisson|volaille|oeuf|charcuterie/, 0],
-    [/cereale|muesli|avoine/, 55], [/noix|amande|graine/, 15]];
-  let ig = 55;
-  for (const [re, v] of R) if (re.test(t)) { ig = v; break; }
-  if (sug && c && sug / c > .7) ig += 8;
-  if (fib && fib > 6) ig -= 8;
-  return clamp(Math.round(ig), 0, 100);
-}
+/* ---------- Open Food Facts : ~4 millions de produits ----------
+   Il y avait ici guessIG(), qui devinait un index glycemique a partir de
+   mots-cles du nom : « chocolat » -> 60, « riz » -> 68, sinon 55. Ca a ete
+   supprime. Sur les 53 000 aliments des bases etendues, ca fabriquait un
+   chiffre d'apparence mesuree pour chaque produit — un « Danette cafe »
+   ressortait a IG 60 sans que personne n'ait jamais teste ce produit.
+   Ces aliments n'ont donc plus d'IG du tout : la fiche affiche un tiret.
+   Les glucides, eux, sont declares par le fabricant. */
 
 /* Open Food Facts répète souvent la marque dans le nom : on ne la recolle
    que si elle en est absente, sinon on obtient « Nutella — Nutella ». */
@@ -3290,7 +3288,7 @@ function ensureCiqual() {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const d = await r.json();
       for (const [n, c, kcal, lip, code] of d.aliments) {
-        registerFood({ n, cat: CIQ_CAT, c, ig: guessIG(n, c), kcal,
+        registerFood({ n, cat: CIQ_CAT, c, ig: null, kcal,
                        pw: 100, pl: '100 g', lip, ciq: code, igEst: true,
                        k: normalize(n + ' ' + CIQ_CAT) });
       }
@@ -3321,7 +3319,7 @@ function ensureOffFr() {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const d = await r.json();
       for (const [n, c, kcal, lip, code] of d.aliments) {
-        registerFood({ n, cat: OFFFR_CAT, c, ig: guessIG(n, c), kcal,
+        registerFood({ n, cat: OFFFR_CAT, c, ig: null, kcal,
                        pw: 100, pl: '100 g', lip, code, off: true, igEst: true,
                        k: normalize(n + ' ' + OFFFR_CAT) });
       }
@@ -3350,7 +3348,7 @@ function offToEntry(p) {
        que le produit cherché une fois est gardé comme un produit scanné */
     n: name, cat: 'Trouvés en ligne', code: p.code || undefined,
     c: clamp(round(c, 1), 0, 100),
-    ig: guessIG(name + ' ' + (p.categories || ''), c, +nu.sugars_100g, +nu.fiber_100g),
+    ig: null,
     kcal: clamp(Math.round(+nu['energy-kcal_100g'] || 0), 0, 900),
     pw: clamp(Math.round(+p.serving_quantity || 100), 5, 900),
     pl: String(p.serving_size || '1 portion').slice(0, 22),
@@ -3407,7 +3405,7 @@ function usdaToEntry(p) {
   return {
     n: name, cat: USDA_CAT,
     c: clamp(round(c, 1), 0, 100),
-    ig: guessIG(name + ' ' + (p.foodCategory || ''), c),
+    ig: null,
     kcal: clamp(Math.round(val('Energy') || 0), 0, 900),
     pw: clamp(Math.round(+p.servingSize || 100), 5, 900),
     pl: String(p.householdServingFullText || '100 g').slice(0, 22),
@@ -3513,7 +3511,7 @@ function matchFoods() {
   return out;
 }
 
-const igCol = ig => ig < 56 ? 'var(--sage-deep)' : ig < 70 ? '#B4741C' : 'var(--terra-deep)';
+const igCol = ig => !aIg(ig) ? 'var(--ink-faint)' : ig < 56 ? 'var(--sage-deep)' : ig < 70 ? '#B4741C' : 'var(--terra-deep)';
 const findFood = n => ALL.find(x => x.n === n);
 
 function renderFoods(onlineMsg) {
@@ -3544,7 +3542,7 @@ function renderFoods(onlineMsg) {
     const g = Math.round(f.pw * mult);
     const carbs = round(f.c * g / 100, 1);
     const kcal = Math.round(f.kcal * g / 100);
-    const cg = round(f.ig * carbs / 100);
+    const cg = aIg(f.ig) ? round(f.ig * carbs / 100) : null;
     const inCmp = cmp.includes(f.n), inTray = tray.some(t => t.n === f.n);
     return `
     <div class="frow ${fOpen === f.n ? 'open' : ''}">
@@ -3557,8 +3555,8 @@ function renderFoods(onlineMsg) {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${carbs}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(f.ig)}">${f.ig ? '~' + f.ig : '—'}</b><span>IG indicatif</span></div>
-          <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge indicative</span></div>
+          <div><b style="color:${igCol(f.ig)}">${aIg(f.ig) ? '~' + f.ig : '—'}</b><span>${aIg(f.ig) ? 'IG indicatif' : 'IG inconnu'}</span></div>
+          <div><b style="color:${cg === null ? 'var(--ink-faint)' : 'var(--violet-deep)'}">${cg === null ? '—' : cg}</b><span>Charge indicative</span></div>
         </div>
         ${state.gp ? `<div class="gp-why ${GP_MARK[gpLevel(f)][0]}">
           <b>${GP_MARK[gpLevel(f)][1]} ${GP_MARK[gpLevel(f)][2]} avec un estomac lent</b>
@@ -3655,7 +3653,7 @@ function openCmp() {
     ['Portion type', f => `${esc(f.pl)}<br><small>${f.pw} g</small>`],
     ['Glucides / portion', f => `<b style="color:var(--peach-deep)">${round(f.c * f.pw / 100)} g</b>`],
     ['Glucides / 100 g', f => `${f.c} g`],
-    ['Indice glycémique', f => `<b style="color:${igCol(f.ig)}">${f.ig || '—'}</b><br><small>${igLabel(f.ig)}</small>`],
+    ['Indice glycémique', f => `<b style="color:${igCol(f.ig)}">${aIg(f.ig) ? '~' + f.ig : '—'}</b><br><small>${igLabel(f.ig)}</small>`],
     ['Charge glycémique', f => `<b style="color:var(--violet-deep)">${round(f.ig * f.c * f.pw / 10000)}</b>`],
     ['Calories / portion', f => `${Math.round(f.kcal * f.pw / 100)} kcal`]
   ];
@@ -5191,7 +5189,7 @@ function offToFood(p, code) {
   return {
     n: name, cat: MYCAT, code,
     c: clamp(round(c, 1), 0, 100),
-    ig: guessIG(name + ' ' + (p.categories || ''), c, +nu.sugars_100g, +nu.fiber_100g),
+    ig: null,                       // aucune source ne publie l'IG d'un produit de marque
     kcal: clamp(Math.round(+nu['energy-kcal_100g'] || 0), 0, 900),
     pw: clamp(Math.round(+p.serving_quantity || 100), 5, 900),
     pl: String(p.serving_size || '1 portion').slice(0, 22),
@@ -5405,7 +5403,7 @@ function renderScanResult(f, cached) {
   const g = Math.round(f.pw * mult);
   const carbs = round(f.c * g / 100, 1);
   const kcal = Math.round(f.kcal * g / 100);
-  const cg = round(f.ig * carbs / 100);
+  const cg = aIg(f.ig) ? round(f.ig * carbs / 100) : null;
   $('#scanBody').innerHTML = `
     <div class="card">
       <div class="fhead" style="padding:0 0 12px">
@@ -5414,8 +5412,8 @@ function renderScanResult(f, cached) {
       </div>
       <div class="fgrid">
         <div><b style="color:var(--peach-deep)">${carbs}</b><span>Glucides g</span></div>
-        <div><b style="color:${igCol(f.ig)}">${f.ig ? '~' + f.ig : '—'}</b><span>IG indicatif</span></div>
-        <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge indicative</span></div>
+        <div><b style="color:${igCol(f.ig)}">${aIg(f.ig) ? '~' + f.ig : '—'}</b><span>${aIg(f.ig) ? 'IG indicatif' : 'IG inconnu'}</span></div>
+        <div><b style="color:${cg === null ? 'var(--ink-faint)' : 'var(--violet-deep)'}">${cg === null ? '—' : cg}</b><span>Charge indicative</span></div>
       </div>
       <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
       <div class="fport">
@@ -5847,7 +5845,9 @@ function renderSettings() {
         <p><b>Glucides</b> — mesurés, et traçables quand la fiche donne une source :
         Ciqual pour les aliments génériques, l'étiquette du paquet pour les produits scannés.
         Sinon c'est une valeur générique de catégorie, utile pour suivre, pas au gramme près.</p>
-        <p><b>Index glycémique</b> — indicatif. Il n'existe pas de base d'IG libre faisant
+        <p><b>Index glycémique</b> — indicatif sur les aliments courants, et <b>absent</b> sur
+        les produits des bases étendues : personne ne publie l'IG d'un yaourt de marque, et
+        l'app préfère un tiret à un chiffre inventé. Il n'existe pas de base d'IG libre faisant
         autorité, et l'IG varie de toute façon d'un laboratoire à l'autre, avec la maturité,
         la cuisson et la personne. Bon pour comparer deux aliments, pas pour calculer.</p>
       </div>
@@ -6438,7 +6438,7 @@ generateRetro(false);
 /* Point d'accroche des tests. Inerte dans un navigateur : rien ne définit
    __GLYCIA_TEST__, donc rien n'est exposé. Voir tools/test/. */
 if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
-  normalize, clamp, round, esc, fmtQ, igClass, igLabel, guessIG, withBrand,
+  normalize, clamp, round, esc, fmtQ, igClass, igLabel, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, collectResponses, mealResponse, matchShoppingItem,
   computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL

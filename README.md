@@ -162,7 +162,12 @@ L'audit de la base est parlant : **82 % des IG sont des multiples de 5**, les va
 
 C'est une limite du domaine, pas seulement de cette app : il n'existe pas de base d'IG libre, exploitable par machine et faisant autorité. Celle de l'[Université de Sydney](https://glycemicindex.com/) est un site de consultation sans export, les tables 2021 sont un supplément d'article sous droits. Et l'IG varie d'un laboratoire à l'autre, avec la maturité, la cuisson et la personne — ces tables séparent elles-mêmes leurs valeurs « précises » de leurs « moins robustes ».
 
-L'IG est donc affiché préfixé d'un `~` et libellé **indicatif**. Il sert à comparer deux aliments, pas à calculer.
+Conséquences dans l'app :
+
+- sur les **1 042 aliments du noyau**, l'IG est affiché préfixé d'un `~` et libellé **indicatif**. Il sert à comparer deux aliments, pas à calculer.
+- sur les **53 115 aliments des bases étendues**, il n'y a **plus d'IG du tout**. Une fonction `guessIG()` le devinait auparavant à partir de mots-clés du nom — « chocolat » → 60, « riz » → 68, sinon 55. Elle fabriquait un chiffre d'apparence mesurée pour chaque produit : un « Danette café » ressortait à IG 60 sans que personne n'ait jamais testé ce produit. Elle est supprimée, la fiche affiche un tiret et « IG inconnu ».
+
+La charge glycémique suit la même règle : elle n'est calculée que là où l'IG existe.
 
 ### Vérifier les valeurs
 
