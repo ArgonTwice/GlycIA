@@ -3246,6 +3246,54 @@ function withBrand(name, brands) {
   return name.slice(0, 52);
 }
 
+/* Un produit Open Food Facts -> une entrée de la base, quelle que soit la
+   route qui l'a ramené. Les deux API ne renvoient pas la même enveloppe mais
+   les mêmes champs produit. */
+const OFF_FIELDS = 'code,product_name_fr,product_name,brands,categories,serving_quantity,serving_size,nutriments';
+function offToEntry(p) {
+  const nu = p.nutriments || {};
+  const c = +nu.carbohydrates_100g;
+  if (!isFinite(c)) return null;
+  let name = (p.product_name_fr || p.product_name || '').trim();
+  if (!name) return null;
+  name = withBrand(name, Array.isArray(p.brands) ? p.brands.join(',') : p.brands);
+  return {
+    n: name, cat: 'Trouvés en ligne',
+    c: clamp(round(c, 1), 0, 100),
+    ig: guessIG(name + ' ' + (p.categories || ''), c, +nu.sugars_100g, +nu.fiber_100g),
+    kcal: clamp(Math.round(+nu['energy-kcal_100g'] || 0), 0, 900),
+    pw: clamp(Math.round(+p.serving_quantity || 100), 5, 900),
+    pl: String(p.serving_size || '1 portion').slice(0, 22),
+    k: normalize(name + ' trouves en ligne'), off: true
+  };
+}
+
+/* Deux routes, dans cet ordre :
+   1. search.openfoodfacts.org (Search-a-licious), la recherche actuelle ;
+   2. cgi/search.pl, l'ancienne, gardée en secours seulement.
+   La première est celle qui répond : au moment de la migration, search.pl
+   et api/v2/search renvoyaient tous deux 503 alors que celle-ci servait
+   normalement. Ne jamais dépendre d'une seule. */
+async function offFetchSearch(q) {
+  const routes = [
+    `https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&page_size=24&fields=${OFF_FIELDS}`,
+    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}`
+      + `&search_simple=1&action=process&json=1&page_size=24&fields=${OFF_FIELDS}`
+  ];
+  let derniere = null;
+  for (const url of routes) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) { derniere = new Error('HTTP ' + r.status); continue; }
+      const d = await r.json();
+      const produits = d.hits || d.products;          // hits = Search-a-licious
+      if (Array.isArray(produits)) return produits;
+      derniere = new Error('réponse inattendue');
+    } catch (e) { derniere = e; }
+  }
+  throw derniere || new Error('injoignable');
+}
+
 let offBusy = false;
 async function offSearch(q) {
   if (offBusy) return;
@@ -3253,33 +3301,16 @@ async function offSearch(q) {
   const el = $('#foodOnline');
   if (el) el.innerHTML = `<div class="online-wait">Recherche parmi 4 millions de produits…</div>`;
   try {
-    const url = 'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(q)
-      + '&search_simple=1&action=process&json=1&page_size=24'
-      + '&fields=product_name_fr,product_name,brands,nutriments,serving_quantity,serving_size,categories';
-    const r = await fetch(url);
-    const d = await r.json();
     let added = 0;
-    (d.products || []).forEach(p => {
-      const nu = p.nutriments || {};
-      const c = +nu.carbohydrates_100g;
-      if (!isFinite(c)) return;
-      let name = (p.product_name_fr || p.product_name || '').trim();
-      if (!name) return;
-      name = withBrand(name, p.brands);
-      const key = normalize(name);
-      if (seenF.has(key)) return;
+    for (const p of await offFetchSearch(q)) {
+      const f = offToEntry(p);
+      if (!f) continue;
+      const key = normalize(f.n);
+      if (seenF.has(key)) continue;
       seenF.add(key);
-      ALL.push({
-        n: name, cat: 'Trouvés en ligne',
-        c: clamp(round(c, 1), 0, 100),
-        ig: guessIG(name + ' ' + (p.categories || ''), c, +nu.sugars_100g, +nu.fiber_100g),
-        kcal: clamp(Math.round(+nu['energy-kcal_100g'] || 0), 0, 900),
-        pw: clamp(Math.round(+p.serving_quantity || 100), 5, 900),
-        pl: String(p.serving_size || '1 portion').slice(0, 22),
-        k: normalize(name + ' trouves en ligne'), off: true
-      });
+      ALL.push(f);
       added++;
-    });
+    }
     if (added && !CATS.includes('Trouvés en ligne')) {
       CATS.push('Trouvés en ligne');
       $('#foodCats').insertAdjacentHTML('beforeend', `<button class="cat" data-cat="Trouvés en ligne">🌐 En ligne</button>`);
@@ -6179,7 +6210,7 @@ if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   normalize, clamp, round, esc, fmtQ, igClass, igLabel, guessIG, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, collectResponses, mealResponse, matchShoppingItem,
-  computeTotals, offToFood, toGl, fmtDur, IGP, state, ALL
+  computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL
 });
 
 })();

@@ -50,6 +50,25 @@ describe('Open Food Facts', () => {
   test('withBrand plafonne à 52 caractères', () => {
     assert.ok(withBrand('x'.repeat(60), 'Marque').length <= 52);
   });
+  /* Les deux routes de recherche ne renvoient pas brands sous la même forme :
+     tableau pour Search-a-licious, chaîne pour l'ancienne. */
+  test('offToEntry accepte les deux formes de « brands »', () => {
+    const nu = { carbohydrates_100g: 30, 'energy-kcal_100g': 150 };
+    const a = api.offToEntry({ product_name_fr: 'Riz basmati', brands: ['Taureau Ailé'], nutriments: nu });
+    const b = api.offToEntry({ product_name_fr: 'Riz basmati', brands: 'Taureau Ailé, Autre', nutriments: nu });
+    assert.equal(a.n, b.n);
+    assert.equal(a.n, 'Riz basmati — Taureau Ailé');
+    assert.equal(a.c, 30);
+  });
+  test('offToEntry écarte un produit sans glucides connus', () => {
+    assert.equal(api.offToEntry({ product_name_fr: 'X', nutriments: {} }), null);
+    assert.equal(api.offToEntry({ product_name_fr: '', nutriments: { carbohydrates_100g: 10 } }), null);
+  });
+  test('offToEntry borne les valeurs aberrantes', () => {
+    const f = api.offToEntry({ product_name_fr: 'Bizarre',
+      nutriments: { carbohydrates_100g: 480, 'energy-kcal_100g': 9000 }, serving_quantity: 5000 });
+    assert.ok(f.c <= 100 && f.kcal <= 900 && f.pw <= 900, JSON.stringify(f));
+  });
   test('guessIG reste dans les bornes', () => {
     for (const [nom, c] of [['soda cola', 11], ['lentilles', 20], ['inconnu', 0], ['pain', 55]]) {
       const ig = guessIG(nom, c, 0, 0);
