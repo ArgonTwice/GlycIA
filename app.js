@@ -2331,7 +2331,10 @@ function addToShoppingList(items, source) {
 
 function renderShoppingList() {
   if (!state.shoppingList.length) {
-    $('#shopBody').innerHTML = `<div class="empty"><strong>Liste vide</strong>Ajoute des ingrédients depuis une recette ou ton plateau.</div>`;
+    $('#shopBody').innerHTML = `<div class="empty"><strong>Liste vide</strong>Ajoute des ingrédients depuis une recette ou ton plateau.</div>
+      <button class="btn btn-outline btn-block" id="shopScan" style="margin-top:12px">
+        <svg><use href="#i-barcode"/></svg> Scanner en magasin</button>`;
+    $('#shopScan').onclick = () => { closeModal($('#m-shopping')); openScan({ shopping: true }); };
     return;
   }
   const groups = {};
@@ -2357,7 +2360,10 @@ function renderShoppingList() {
     }).join('');
   }).join('');
   $('#shopBody').innerHTML = html + `
-    <button class="btn btn-outline btn-block" id="shopClear" style="margin-top:14px">Vider la liste</button>`;
+    <button class="btn btn-primary btn-block" id="shopScan" style="margin-top:14px">
+      <svg><use href="#i-barcode"/></svg> Scanner en magasin</button>
+    <button class="btn btn-outline btn-block" id="shopClear" style="margin-top:8px">Vider la liste</button>`;
+  $('#shopScan').onclick = () => { closeModal($('#m-shopping')); openScan({ shopping: true }); };
   $$('#shopBody [data-shopcheck]').forEach(b => b.onclick = () => {
     const it = state.shoppingList[+b.dataset.shopcheck];
     it.bought = !it.bought;
@@ -2925,6 +2931,8 @@ $('#btnSync').addEventListener('click', () => { openModal('sync'); renderSync();
    ========================================================================== */
 const OFFCACHE = new Map();          // code-barres ou requête -> produit
 let bdStream = null, bdLoop = null;
+let shopMode = false;                          // scan en rafale depuis la liste de courses
+let lastScan = { code: null, t: 0 };
 
 function offToFood(p, code) {
   const nu = p.nutriments || {};
@@ -3014,9 +3022,15 @@ function stopBd() {
   if (bdStream) { bdStream.getTracks().forEach(t => t.stop()); bdStream = null; }
 }
 
-async function openScan() {
+async function openScan(opts) {
   stopBd();                          // relance depuis « Scanner un autre »
+  shopMode = !!(opts && opts.shopping);
+  lastScan = { code: null, t: 0 };
   openModal('scan');
+  $('#scanTitle').textContent = shopMode ? 'Scanner en magasin' : 'Scanner le paquet';
+  $('#scanSub').textContent = shopMode
+    ? 'Les produits se cochent sur ta liste au fur et à mesure.'
+    : 'Le produit exact, avec ses vraies valeurs.';
   const body = $('#scanBody');
   if (!('BarcodeDetector' in window)) {
     body.innerHTML = `<div class="empty"><strong>Scanner indisponible</strong>
@@ -3027,7 +3041,10 @@ async function openScan() {
   }
   body.innerHTML = `<div class="cam-wrap"><video id="bdVideo" playsinline autoplay muted></video>
       <div class="bd-frame"></div></div>
-    <p class="foot-note" id="bdMsg">Vise le code-barres du paquet, bien à plat et éclairé.</p>` + manualBox();
+    <p class="foot-note" id="bdMsg">${shopMode
+      ? 'Enchaîne les paquets : la caméra reste ouverte entre deux codes.'
+      : 'Vise le code-barres du paquet, bien à plat et éclairé.'}</p>`
+    + (shopMode ? `<div id="scanLog"></div>` : '') + manualBox();
   bindManual();
   try {
     const det = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });
@@ -3038,6 +3055,13 @@ async function openScan() {
         const codes = await det.detect(v);
         if (!codes.length) return;
         const code = codes[0].rawValue;
+        if (shopMode) {
+          /* rafale : le même paquet reste dans le cadre plusieurs cycles */
+          if (code === lastScan.code && Date.now() - lastScan.t < 4000) return;
+          lastScan = { code, t: Date.now() };
+          shopLookup(code);
+          return;
+        }
         stopBd();
         $('#bdMsg').textContent = 'Code ' + code + ' — recherche du produit…';
         await lookup(code);
@@ -3062,8 +3086,64 @@ function bindManual() {
   $('#bdGo').onclick = () => {
     const c = $('#bdManual').value.replace(/\D/g, '');
     if (c.length < 8) { toast('Il manque des chiffres'); return; }
+    if (shopMode) { $('#bdManual').value = ''; shopLookup(c); return; }
     lookup(c);
   };
+}
+
+/* ---------- Mode courses : scan en rafale, la caméra ne se coupe pas ----------
+   C'est en magasin que la décision se prend : le produit en main se coche sur
+   la liste et la substitution à IG plus bas s'affiche à ce moment-là. */
+function matchShoppingItem(name) {
+  const n = normalize(name);
+  return state.shoppingList.find(it => {
+    const k = normalize(it.name);
+    return k.length > 2 && (n.includes(k) || k.includes(n));
+  });
+}
+
+function shopLine(html) {
+  const log = $('#scanLog');
+  if (!log) return null;
+  const el = document.createElement('div');
+  el.innerHTML = html;
+  log.prepend(el);
+  return el;
+}
+
+async function shopLookup(code) {
+  const el = shopLine(`<p class="foot-note">Code ${esc(code)} — recherche du produit…</p>`);
+  try {
+    const f = await fetchBarcode(code);
+    registerFood(f);
+    saveMyFoods();
+    const it = matchShoppingItem(f.n);
+    const already = it && it.bought;
+    if (it && !it.bought) { it.bought = true; saveState(); }
+    const sub = findSubstitution(f.n);
+    const note = it
+      ? (already ? 'déjà coché sur ta liste' : `coché sur ta liste : ${esc(it.name)}`)
+      : 'pas sur ta liste';
+    if (!el) return;
+    el.innerHTML = `
+      <div class="frow">
+        <div class="fhead">
+          <span class="fe">${it ? '✅' : '🛒'}</span>
+          <span class="fn"><b>${esc(f.n)}</b><span>${note} · ${igLabel(f.ig)}</span></span>
+          <span class="fc"><b>${round(f.c * f.pw / 100)}</b><span>g gluc.</span></span>
+        </div>
+        ${sub ? `<p class="shop-sub" style="padding:0 13px 10px;margin-top:-4px">💡 Plutôt : <b>${esc(sub.alt)}</b> — ${esc(sub.note)}</p>` : ''}
+        ${it ? '' : `<div style="padding:0 13px 12px">
+          <button class="btn btn-outline btn-block" data-shopadd="${esc(f.n)}">Ajouter à ma liste</button></div>`}
+      </div>`;
+    const add = el.querySelector('[data-shopadd]');
+    if (add) add.onclick = () => {
+      addToShoppingList([[f.n, '']], 'scan');
+      add.parentElement.innerHTML = `<p class="foot-note">Ajouté à ta liste.</p>`;
+    };
+  } catch (_) {
+    if (el) el.innerHTML = `<p class="foot-note">Code ${esc(code)} — produit introuvable dans Open Food Facts.</p>`;
+  }
 }
 
 /* Fiche produit dans la modale : portion réglable puis ajout direct au journal.
