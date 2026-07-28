@@ -227,6 +227,7 @@ function renderTimeline() {
             <span class="stat ${igClass(m.ig)}">${igLabel(m.ig)} · ${m.ig}</span>
             <span class="stat">CG ${round(m.ig * m.carbs / 100)}</span>
           </div>
+          ${mealCurve(m)}
         </div>
         <button class="meal-del" data-del="${m.id}" aria-label="Retirer ${esc(m.name)}">
           <svg><use href="#i-trash"/></svg>
@@ -236,6 +237,57 @@ function renderTimeline() {
 }
 
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+
+/* ---------- Réponse glycémique des 3 h qui suivent un repas ----------
+   Description factuelle : pic, écart à la base, retour. Aucune lecture,
+   aucun conseil — voir la ligne rouge de la section 30. */
+const RESP_H = 3;
+const fmtDur = min => min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+
+function mealResponse(m) {
+  if (!state.glucose.length) return null;
+  const t0 = +m.time, t1 = t0 + RESP_H * 3600e3;
+  const pts = state.glucose.filter(p => +p.t >= t0 && +p.t <= t1);
+  if (pts.length < 4) return null;
+  const before = state.glucose.filter(p => +p.t <= t0);
+  const base = before.length ? before[before.length - 1].mgdl : pts[0].mgdl;
+  let peak = pts[0], pi = 0;
+  pts.forEach((p, i) => { if (p.mgdl > peak.mgdl) { peak = p; pi = i; } });
+  const back = pts.slice(pi).find(p => p.mgdl <= base + 15);
+  return {
+    pts, base, peak,
+    delta: peak.mgdl - base,
+    peakMin: Math.round((+peak.t - t0) / 60000),
+    backMin: back ? Math.round((+back.t - t0) / 60000) : null
+  };
+}
+
+function mealCurve(m) {
+  const r = mealResponse(m);
+  if (!r) return '';
+  const W = 200, H = 40, pad = 5;
+  const vals = r.pts.map(p => p.mgdl).concat(r.base);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const rng = Math.max(20, hi - lo);
+  const t0 = +r.pts[0].t, span = Math.max(1, +r.pts[r.pts.length - 1].t - t0);
+  const X = p => ((+p.t - t0) / span) * W;
+  const Y = v => pad + (1 - (v - lo) / rng) * (H - pad * 2);
+  const d = r.pts.map((p, i) => `${i ? 'L' : 'M'}${X(p).toFixed(1)} ${Y(p.mgdl).toFixed(1)}`).join(' ');
+  return `
+    <div class="meal-curve">
+      <svg viewBox="0 0 ${W} ${H}" role="img"
+           aria-label="Glycémie sur les ${RESP_H} heures suivant ce repas, pic à ${toGl(r.peak.mgdl)} grammes par litre">
+        <line x1="0" y1="${Y(r.base).toFixed(1)}" x2="${W}" y2="${Y(r.base).toFixed(1)}"
+              stroke="#E5DFD2" stroke-width="1" stroke-dasharray="3 4"/>
+        <path d="${d}" fill="none" stroke="#7E6BB0" stroke-width="2"
+              stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="${X(r.peak).toFixed(1)}" cy="${Y(r.peak.mgdl).toFixed(1)}" r="2.8" fill="#7E6BB0"/>
+      </svg>
+      <p>Départ ${toGl(r.base)} · pic ${toGl(r.peak.mgdl)} g/L à ${fmtDur(r.peakMin)}
+        (${r.delta >= 0 ? '+' : '−'}${toGl(Math.abs(r.delta))} g/L)${r.backMin !== null
+          ? ` · revenu au niveau de départ à ${fmtDur(r.backMin)}` : ` · encore au-dessus à ${RESP_H} h`}</p>
+    </div>`;
+}
 
 function renderFavorites() {
   $('#favRail').innerHTML = FAVORITES.map((f, i) => `
@@ -1804,6 +1856,7 @@ async function loadGlucose(manual) {
   try {
     state.glucose = await fetchGlucose();
     renderGlucose();
+    renderTimeline();          // les courbes par repas apparaissent avec les mesures
   } catch (_) {
     /* dégradation : on garde la dernière courbe connue plutôt qu'un écran vide */
     renderGlucose('Capteur injoignable pour le moment.');
@@ -3613,6 +3666,7 @@ function renderSettings() {
       const pts = await fetchGlucose();
       state.glucose = pts;
       renderGlucose();
+      renderTimeline();
       $('#cgmSect').hidden = false;
       $('#nsTest').innerHTML = pts.length
         ? `<div class="online-wait" style="color:var(--sage-deep)">✅ ${pts.length} mesures lues — la courbe est sur l'accueil.</div>`
