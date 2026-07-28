@@ -28,6 +28,15 @@
       "purpose": "maskable"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "Scanner un produit",
+      "short_name": "Scanner",
+      "description": "Ouvre directement la lecture de code-barres",
+      "url": "./index.html?scan=1",
+      "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ],
   "share_target": {
     "action": "./share-target",
     "method": "POST",

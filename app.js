@@ -206,7 +206,7 @@ function renderTimeline() {
   const wrap = $('#timeline');
   if (!state.journal.length) {
     wrap.innerHTML = `<div class="empty"><strong>Rien de noté pour l'instant</strong>
-      Photographie ton assiette ou touche un favori : ça prend trois secondes.</div>`;
+      Scanne le code-barres d'un produit ou touche un favori : ça prend trois secondes.</div>`;
     return;
   }
   const sorted = [...state.journal].sort((a, b) => a.time - b.time);
@@ -958,8 +958,8 @@ function updateRecap() {
   $('#rNote').textContent = currentNote();
 }
 
-$('#btnShoot').addEventListener('click', startShoot);
-$('#fabShoot').addEventListener('click', startShoot);
+$('#btnShoot2').addEventListener('click', startShoot);
+$('#fabScan').addEventListener('click', openScan);
 
 /* ==========================================================================
    10. ASSISTANT RECETTES
@@ -3449,6 +3449,12 @@ function checkQuickAddParam() {
   history.replaceState(null, '', location.pathname);
   quickAddFavori(+v);
 }
+/* Raccourci de l'icône PWA : ouvre la caméra code-barres au lancement */
+function checkScanParam() {
+  if (new URLSearchParams(location.search).get('scan') !== '1') return;
+  history.replaceState(null, '', location.pathname);
+  openScan();
+}
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', e => {
     if (e.data && e.data.type === 'glycia-addfav' && e.data.index !== '') quickAddFavori(+e.data.index);
@@ -3771,7 +3777,7 @@ $('#goGE').addEventListener('click', () => go('ge'));
 $('#goGE2').addEventListener('click', () => go('ge'));
 $('#goSport').addEventListener('click', () => go('sport'));
 $('#goSport2').addEventListener('click', () => go('sport'));
-$('#btnScan2').addEventListener('click', openScan);
+$('#btnScanMain').addEventListener('click', openScan);
 $('#todayLabel').textContent = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
 seedPast();
 if (!loadState()) seed();
@@ -3782,9 +3788,11 @@ renderDay();
 findRecipe();
 renderGpLog();
 const sharedIncoming = new URLSearchParams(location.search).get('partage') === '1';
-if (!store.get('glycia.onboarded') && !sharedIncoming) openModal('onboard');
+const scanIncoming = new URLSearchParams(location.search).get('scan') === '1';
+if (!store.get('glycia.onboarded') && !sharedIncoming && !scanIncoming) openModal('onboard');
 checkQuickAddParam();
 checkSharedPhoto();
+checkScanParam();
 scheduleReminder();
 generateRetro(false);
 
