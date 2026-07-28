@@ -128,7 +128,7 @@ Le workflow `release.yml` crée la release et y attache `standalone.html` ainsi 
 L'app cherche du moins cher au plus cher, et s'arrête dès qu'elle a de quoi répondre :
 
 1. **`db.json`** — 1 042 aliments choisis, portions réalistes, chargé au démarrage.
-2. **`ciqual.json`** — les 3 128 autres aliments de la table de l'ANSES, 196 Ko chargés à la demande. Pas au démarrage : le budget de poids de la page est déjà presque atteint.
+2. **`ciqual.json`** — les 3 128 autres aliments de la table de l'ANSES, 196 Ko chargés en tâche de fond une fois la page affichée, donc sans peser sur l'affichage initial. Ils sont cherchables mais ne remplissent pas la liste par défaut : parcourir « Tout » donnerait sinon « Abricot au sirop, appertisé, non égoutté » avant les aliments courants. Ils ont leur propre catégorie 📗.
 3. **Open Food Facts** — les produits emballés, par nom ou par code-barres.
 4. **FoodData Central** — ~600 000 aliments, surtout américains, pour ce qui manque ailleurs. Fonctionne sans configuration via un quota partagé ; une [clé gratuite](https://fdc.nal.usda.gov/api-key-signup.html) lève la limite.
 
@@ -138,17 +138,15 @@ Soit **4 170 aliments hors ligne** et plusieurs millions en ligne. Les aliments 
 
 Ciqual est aussi la source de [Gluci-Chek](https://www.accu-chek.fr/produits/application/gluci-chek), l'application de comptage de Roche : ce n'est pas une base concurrente, c'est la même référence.
 
-### ⚠️ L'index glycémique n'est pas sourcé
+### L'index glycémique est indicatif
 
-Ciqual ne publie pas d'index glycémique, et **aucune valeur d'IG de cette app n'a été vérifiée contre une source**. Une version antérieure de ce README citait les *International Tables of Glycemic Index 2021* : c'était faux, la vérification n'avait jamais été faite.
+Ciqual ne publie pas d'index glycémique, et aucune valeur d'IG de cette app n'est traçable jusqu'à une source. Une version antérieure de ce README citait les *International Tables of Glycemic Index 2021* — la vérification n'avait jamais été faite, la mention est retirée.
 
-Ce que dit l'audit de la base : **82 % des IG sont des multiples de 5**, et les valeurs les plus fréquentes sont 60, 55, 50, 65, 45. Des mesures de laboratoire ne se distribuent pas ainsi. Les valeurs sont vraisemblables — pomme 38, lentilles 30, banane 52 sont dans les ordres de grandeur publiés — mais elles sont **arrondies et non traçables**.
+L'audit de la base est parlant : **82 % des IG sont des multiples de 5**, les valeurs les plus fréquentes étant 60, 55, 50, 65, 45. Des mesures de laboratoire ne se distribuent pas ainsi. Les valeurs sont vraisemblables — pomme 38, lentilles 30, banane 52 correspondent aux ordres de grandeur publiés — mais arrondies. Pour les aliments venus de Ciqual, d'Open Food Facts ou de l'USDA, l'IG est calculé par `guessIG()`, une heuristique à base de mots-clés.
 
-Pour les aliments venus de Ciqual, d'Open Food Facts ou de l'USDA, l'IG est carrément calculé par `guessIG()`, une heuristique à base de mots-clés.
+C'est une limite du domaine, pas seulement de cette app : il n'existe pas de base d'IG libre, exploitable par machine et faisant autorité. Celle de l'[Université de Sydney](https://glycemicindex.com/) est un site de consultation sans export, les tables 2021 sont un supplément d'article sous droits. Et l'IG varie d'un laboratoire à l'autre, avec la maturité, la cuisson et la personne — ces tables séparent elles-mêmes leurs valeurs « précises » de leurs « moins robustes ».
 
-Il n'existe pas de base d'IG libre, exploitable par machine et faisant autorité : celle de l'[Université de Sydney](https://glycemicindex.com/) est un site de consultation sans export, et les tables 2021 sont un supplément d'article sous droits, non redistribuable. Par ailleurs l'IG varie d'un laboratoire à l'autre, avec la maturité, la cuisson et la personne — les tables 2021 séparent elles-mêmes les valeurs « précises » des « moins robustes ».
-
-**Ne fonde aucune décision sur l'IG affiché ici.** Les glucides, eux, sont sourcés.
+L'IG est donc affiché préfixé d'un `~` et libellé **indicatif**. Il sert à comparer deux aliments, pas à calculer.
 
 ### Vérifier les valeurs
 
@@ -163,18 +161,17 @@ L'outil télécharge Ciqual, apparie les aliments par nom et signale les écarts
 
 Ce sont des **estimations**. Les valeurs de l'app décrivent l'aliment **prêt à manger**, pas cru — c'est ce qui compte dans une assiette, mais ça diffère de la ligne Ciqual correspondante pour tous les féculents. Recettes maison, marques et tailles de portion font varier le reste.
 
-### État réel du sourçage
+### D'où vient chaque chiffre
 
-| | Aliments | Source |
+| | Aliments | Ce que c'est |
 |---|---|---|
-| Tracés | **189** | Table Ciqual, code à l'appui, vérifiable en ligne |
-| Non vérifiés | **853** | Saisis à la main, source non retrouvée |
+| Table Ciqual | **189** | Mesuré en laboratoire, code à l'appui, vérifiable en ligne |
+| Valeur générique | **853** | Moyenne de catégorie — « Pizza margherita », « Big Mac », « Kebab » |
+| Scanné | à la demande | Valeur déclarée sur le paquet, règlement UE 1169/2011 |
 
-La fiche affiche l'état de chaque aliment sans le maquiller. Un aliment non vérifié le dit en rouge et renvoie vers le scan du paquet.
+Chaque fiche affiche son état. Une valeur générique le dit et propose de scanner le paquet pour obtenir celle du produit réel.
 
-**Pourquoi les 853 restent non vérifiés.** Ce sont des entrées génériques — « Pizza margherita », « Big Mac », « Kebab sandwich ». Ciqual ne les couvre pas. `tools/audit-etiquettes.mjs` a tenté de les rapprocher des étiquettes d'Open Food Facts : ça trouve des correspondances, mais un code-barres désigne *un produit précis*, pas une catégorie. Attacher le code d'une pizza surgelée particulière à la ligne générique donnerait l'apparence d'une source sans en être une. L'outil est là, ses garde-fous sont documentés, et **il n'a pas été appliqué** — délibérément.
-
-Pour ces aliments, la réponse honnête de l'app est son bouton principal : **scanne le paquet**. Le code-barres donne la valeur déclarée du produit que tu as réellement en main, sous le règlement UE 1169/2011.
+Les 853 génériques ne sont pas dans Ciqual, qui ne couvre pas les plats de chaîne. `tools/audit-etiquettes.mjs` sait les rapprocher d'étiquettes Open Food Facts, mais **il n'est pas appliqué** : un code-barres désigne un produit précis, pas une catégorie, et l'accrocher à une ligne générique donnerait l'apparence d'une source sans en être une. L'outil et ses garde-fous restent au dépôt pour les cas où la correspondance est réellement univoque.
 
 ## Avertissement
 

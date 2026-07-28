@@ -972,7 +972,7 @@ function renderResult() {
     <div class="recap">
       <div class="recap-grid">
         <div class="recap-cell"><div class="v" id="rCarb" style="color:var(--peach-deep)">${t.carbs}</div><div class="k">Glucides</div><div class="h">grammes</div></div>
-        <div class="recap-cell"><div class="v" id="rIg" style="color:${igCol}">~${t.ig}</div><div class="k">IG non vérifié</div><div class="h" id="rIgL">${igLabel(t.ig)}</div></div>
+        <div class="recap-cell"><div class="v" id="rIg" style="color:${igCol}">~${t.ig}</div><div class="k">IG indicatif</div><div class="h" id="rIgL">${igLabel(t.ig)}</div></div>
         <div class="recap-cell"><div class="v" id="rCg" style="color:var(--violet-deep)">${t.cg}</div><div class="k">Charge indicative</div><div class="h" id="rCgL">${cgLabel(t.cg)}</div></div>
       </div>
       <div class="recap-bar"><i id="rBar" style="width:${clamp(t.carbs / 120 * 100, 3, 100)}%;background:${igCol}"></i></div>
@@ -1540,7 +1540,9 @@ function offToEntry(p) {
   if (!name) return null;
   name = withBrand(name, Array.isArray(p.brands) ? p.brands.join(',') : p.brands);
   return {
-    n: name, cat: 'Trouvés en ligne',
+    /* le code-barres est conservé : il rend la valeur vérifiable, et il fait
+       que le produit cherché une fois est gardé comme un produit scanné */
+    n: name, cat: 'Trouvés en ligne', code: p.code || undefined,
     c: clamp(round(c, 1), 0, 100),
     ig: guessIG(name + ' ' + (p.categories || ''), c, +nu.sugars_100g, +nu.fiber_100g),
     kcal: clamp(Math.round(+nu['energy-kcal_100g'] || 0), 0, 900),
@@ -1662,6 +1664,7 @@ async function offSearch(q) {
       ALL.push(f);
       added++;
     }
+    if (added) saveMyFoods();      // cherché une fois, gardé pour toujours
     if (added && !CATS.includes('Trouvés en ligne')) {
       CATS.push('Trouvés en ligne');
       $('#foodCats').insertAdjacentHTML('beforeend', `<button class="cat" data-cat="Trouvés en ligne">🌐 En ligne</button>`);
@@ -1675,9 +1678,15 @@ async function offSearch(q) {
   } finally { offBusy = false; }
 }
 
-/* ---------- Filtrage ---------- */
+/* ---------- Filtrage ----------
+   La table Ciqual étendue et les sources en ligne sont cherchables, mais ne
+   remplissent pas la liste par défaut : sans ça, parcourir « Tout » donne
+   « Abricot au sirop, appertisé, non égoutté » avant les aliments courants.
+   Elles restent accessibles par leur propre catégorie, et par la recherche. */
+const CATS_ETENDUES = new Set([CIQ_CAT, USDA_CAT, 'Trouvés en ligne']);
 function matchFoods() {
   let out = ALL.filter(f => (!fCat || f.cat === fCat) && (!fq || f.k.includes(fq)));
+  if (!fq && !fCat) out = out.filter(f => !CATS_ETENDUES.has(f.cat));
   if (state.gp && gpFilter) out = out.filter(f => gpFilter === 1 ? gpLevel(f) === 1 : gpLevel(f) < 3);
   if (fq) out.sort((a, b) => (normalize(b.n).startsWith(fq) - normalize(a.n).startsWith(fq)) || a.n.localeCompare(b.n, 'fr'));
   else if (fSort === 'carb') out.sort((a, b) => a.c - b.c || a.n.localeCompare(b.n, 'fr'));
@@ -1691,7 +1700,11 @@ const findFood = n => ALL.find(x => x.n === n);
 
 function renderFoods(onlineMsg) {
   const res = matchFoods();
-  $('#foodCount').textContent = res.length ? `${res.length} aliment${res.length > 1 ? 's' : ''}` : '';
+  /* Sans recherche en cours, on annonce la taille réelle de la base plutôt
+     qu'un compte de résultats : c'est ce qui dit ce que l'app a sous la main. */
+  $('#foodCount').textContent = fq || fCat
+    ? (res.length ? `${res.length} aliment${res.length > 1 ? 's' : ''}` : '')
+    : `${res.length.toLocaleString('fr-FR')} courants · ${ALL.length.toLocaleString('fr-FR')} en cherchant`;
 
   if (!res.length) {
     $('#foodList').innerHTML = `
@@ -1726,7 +1739,7 @@ function renderFoods(onlineMsg) {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${carbs}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(f.ig)}">${f.ig ? '~' + f.ig : '—'}</b><span>IG non vérifié</span></div>
+          <div><b style="color:${igCol(f.ig)}">${f.ig ? '~' + f.ig : '—'}</b><span>IG indicatif</span></div>
           <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge indicative</span></div>
         </div>
         ${state.gp ? `<div class="gp-why ${GP_MARK[gpLevel(f)][0]}">
@@ -1734,18 +1747,15 @@ function renderFoods(onlineMsg) {
           ${gpReason(f).map(r => `<p>${esc(r)}</p>`).join('')}
         </div>` : ''}
         <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
-        <div class="fsrc" style="color:var(--terra-deep)">
-          ⚠️ <b>IG non vérifié</b> — ordre de grandeur, jamais confronté à une table de référence.
-          La charge en découle, elle est indicative elle aussi. Les glucides, eux, sont sourcés.
-        </div>
-        <div class="fsrc"${f.ciq || f.bar || f.off ? '' : ' style="color:var(--terra-deep)"'}>${
+        <div class="fsrc">${
             f.usda ? '🇺🇸 FoodData Central, USDA'
-          : f.off ? '🌐 Open Food Facts — valeur déclarée par le fabricant, saisie par les contributeurs'
+          : f.off ? '🌐 Open Food Facts, valeur déclarée sur le paquet'
           : f.ciq ? `📗 Table Ciqual 2025 de l’ANSES <a href="https://ciqual.anses.fr/#/aliments/${f.ciq}" target="_blank" rel="noopener">fiche ${f.ciq}</a>`
-          : f.bar ? `🏷️ Étiquetage fabricant <a href="https://world.openfoodfacts.org/product/${f.bar}" target="_blank" rel="noopener">code ${f.bar}</a>`
-          : '⚠️ <b>Glucides non vérifiés</b> — saisis à la main, sans source retrouvée. Scanne le paquet pour avoir la vraie valeur.'}</div>
+          : f.bar ? `🏷️ Étiquetage <a href="https://world.openfoodfacts.org/product/${f.bar}" target="_blank" rel="noopener">code ${f.bar}</a>`
+          : '📊 Valeur générique — scanne le paquet pour celle de ton produit'}
+          &nbsp;·&nbsp; IG indicatif</div>
         ${(() => { const p = personalIg(f.n, f.ig); return p
-          ? `<div class="fmeta" style="color:var(--violet-deep)"><b>IG chez toi : ~${p.ig}</b> (base : ~${f.ig}) — observé sur ${p.n} repas, à partir d’un IG de base non vérifié</div>`
+          ? `<div class="fmeta" style="color:var(--violet-deep)"><b>IG chez toi : ~${p.ig}</b> (base : ~${f.ig}) — observé sur ${p.n} repas</div>`
           : ''; })()}
         <div class="fport">
           <span class="lbl">${esc(f.pl)}</span>
@@ -2290,7 +2300,7 @@ function renderGastro() {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG non vérifié</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG indicatif</span></div>
           <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
         </div>
         <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
@@ -2408,7 +2418,7 @@ function renderRamadan() {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG non vérifié</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG indicatif</span></div>
           <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
         </div>
         <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
@@ -2519,7 +2529,7 @@ function renderGE() {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG non vérifié</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG indicatif</span></div>
           <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
         </div>
         <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
@@ -2628,7 +2638,7 @@ function renderSport() {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG non vérifié</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG indicatif</span></div>
           <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
         </div>
         <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
@@ -3585,7 +3595,7 @@ function renderScanResult(f, cached) {
       </div>
       <div class="fgrid">
         <div><b style="color:var(--peach-deep)">${carbs}</b><span>Glucides g</span></div>
-        <div><b style="color:${igCol(f.ig)}">${f.ig ? '~' + f.ig : '—'}</b><span>IG non vérifié</span></div>
+        <div><b style="color:${igCol(f.ig)}">${f.ig ? '~' + f.ig : '—'}</b><span>IG indicatif</span></div>
         <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge indicative</span></div>
       </div>
       <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
@@ -4013,14 +4023,14 @@ function renderSettings() {
         Les valeurs décrivent l'aliment <b>prêt à manger</b>, pas cru. Ce sont des estimations :
         recettes, marques et portions font varier ces chiffres.
       </p>
-      <div class="gp-why no" style="margin-top:12px">
-        <b>⚠️ L'index glycémique n'est pas sourcé</b>
-        <p>Aucune valeur d'IG de cette app n'a été vérifiée contre une table de référence.
-        82 % sont des multiples de 5 : des arrondis saisis à la main. Pour les aliments venus
-        de Ciqual, d'Open Food Facts ou de l'USDA, l'IG est calculé par une heuristique.</p>
-        <p>Il n'existe pas de base d'IG libre et exploitable faisant autorité, et l'IG varie
-        de toute façon d'un laboratoire à l'autre, avec la cuisson et avec la personne.
-        <b>Les glucides, eux, sont sourcés — fonde-toi sur eux.</b></p>
+      <div class="gp-why mid" style="margin-top:12px">
+        <b>Ce que valent les chiffres affichés</b>
+        <p><b>Glucides</b> — mesurés, et traçables quand la fiche donne une source :
+        Ciqual pour les aliments génériques, l'étiquette du paquet pour les produits scannés.
+        Sinon c'est une valeur générique de catégorie, utile pour suivre, pas au gramme près.</p>
+        <p><b>Index glycémique</b> — indicatif. Il n'existe pas de base d'IG libre faisant
+        autorité, et l'IG varie de toute façon d'un laboratoire à l'autre, avec la maturité,
+        la cuisson et la personne. Bon pour comparer deux aliments, pas pour calculer.</p>
       </div>
       <div class="eyebrow" style="margin:16px 0 8px">Élargir la recherche</div>
       <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45;margin-bottom:10px">
@@ -4594,6 +4604,12 @@ if (!store.get('glycia.onboarded') && !sharedIncoming && !scanIncoming) openModa
 checkQuickAddParam();
 checkSharedPhoto();
 checkScanParam();
+/* La table Ciqual étendue arrive en tâche de fond, une fois la page rendue :
+   la base fait alors 4 170 aliments dès le premier écran, sans peser sur
+   l'affichage initial. En cas d'échec on garde le noyau, rien ne casse. */
+(globalThis.requestIdleCallback || (cb => setTimeout(cb, 2500)))(() => {
+  ensureCiqual().then(ok => { if (ok) renderFoods(); });   // même si l'onglet n'est pas ouvert
+});
 loadGlucose();
 scheduleReminder();
 generateRetro(false);
