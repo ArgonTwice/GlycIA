@@ -3192,28 +3192,31 @@ $('#foodSort').addEventListener('click', () => {
   renderFoods();
 });
 
-let offTimer = null;
+let offTimer = null, rendreTimer = null;
 $('#foodQ').addEventListener('input', e => {
   fq = normalize(e.target.value.trim());
   fLimit = 40; fOpen = null;
   $('#foodClear').style.display = e.target.value ? 'grid' : 'none';
-  renderFoods();
+  /* Tout le travail lourd part dans un seul passage amorti. Le filtre et le
+     tri portent sur des dizaines de milliers d'aliments : les rejouer a
+     chaque touche, et deux fois par touche — une pour le rendu, une pour
+     decider d'aller en ligne — rendait la saisie poussive. 90 ms ne se
+     sentent pas, la rafale oui. */
+  clearTimeout(rendreTimer);
   clearTimeout(offTimer);
-  /* Quatre niveaux, du moins cher au plus cher : le noyau, la table Ciqual
-     complète (un fichier, une fois), Open Food Facts, puis FoodData Central.
-     On s'arrête dès qu'il y a de quoi répondre. */
-  if (fq.length >= 3 && matchFoods().length < 6) offTimer = setTimeout(async () => {
-    if (await ensureCiqual()) {
-      renderFoods(`Table Ciqual ouverte — ${ALL.length.toLocaleString('fr-FR')} aliments`);
-      if (matchFoods().length >= 6) return;
-    }
-    if (await ensureOffFr()) {
-      renderFoods(`Produits français ouverts — ${ALL.length.toLocaleString('fr-FR')} aliments hors ligne`);
-      if (matchFoods().length >= 6) return;
-    }
-    await offSearch(fq);
-    if (matchFoods().length < 6) await usdaSearch(fq);
-  }, 700);
+  rendreTimer = setTimeout(() => {
+    const trouves = renderFoods();
+    /* Quatre niveaux, du moins cher au plus cher : le noyau, la table Ciqual,
+       les produits francais hors ligne, puis les recherches en ligne.
+       On s'arrete des qu'il y a de quoi repondre. */
+    if (fq.length < 3 || trouves >= 6) return;
+    offTimer = setTimeout(async () => {
+      if (await ensureCiqual() && renderFoods(`Table Ciqual ouverte — ${ALL.length.toLocaleString('fr-FR')} aliments`) >= 6) return;
+      if (await ensureOffFr() && renderFoods(`Produits français ouverts — ${ALL.length.toLocaleString('fr-FR')} aliments hors ligne`) >= 6) return;
+      if (await offSearch(fq) >= 6) return;
+      await usdaSearch(fq);
+    }, 600);
+  }, 90);
 });
 $('#foodClear').addEventListener('click', () => {
   $('#foodQ').value = ''; fq = ''; fLimit = 40;
@@ -3452,7 +3455,7 @@ async function usdaSearch(q) {
 
 let offBusy = false;
 async function offSearch(q) {
-  if (offBusy) return;
+  if (offBusy) return 0;
   offBusy = true;
   const el = $('#foodOnline');
   if (el) el.innerHTML = `<div class="online-wait">Recherche parmi 4 millions de produits…</div>`;
@@ -3473,11 +3476,11 @@ async function offSearch(q) {
       $('#foodCats').insertAdjacentHTML('beforeend', `<button class="cat" data-cat="Trouvés en ligne">🌐 En ligne</button>`);
       bindCats();
     }
-    renderFoods(added ? `${added} produit${added > 1 ? 's' : ''} récupéré${added > 1 ? 's' : ''} depuis Open Food Facts` : 'Aucun produit trouvé en ligne');
-    return added;
+    return renderFoods(added ? `${added} produit${added > 1 ? 's' : ''} récupéré${added > 1 ? 's' : ''} depuis Open Food Facts` : 'Aucun produit trouvé en ligne');
   } catch (e) {
     const z = $('#foodOnline');
     if (z) z.innerHTML = `<div class="online-wait">Base mondiale injoignable depuis cet aperçu.</div>`;
+    return 0;                       // la chaîne enchaîne alors sur l'USDA
   } finally { offBusy = false; }
 }
 
@@ -3487,14 +3490,26 @@ async function offSearch(q) {
    « Abricot au sirop, appertisé, non égoutté » avant les aliments courants.
    Elles restent accessibles par leur propre catégorie, et par la recherche. */
 const CATS_ETENDUES = new Set([CIQ_CAT, USDA_CAT, OFFFR_CAT, 'Trouvés en ligne']);
+/* Un seul collateur, reutilise. localeCompare en cree un a chaque appel :
+   sur des dizaines de milliers d'aliments, la difference est visible. */
+const COLLATEUR = new Intl.Collator('fr');
+const parNom = (a, b) => COLLATEUR.compare(a.n, b.n);
+
 function matchFoods() {
   let out = ALL.filter(f => (!fCat || f.cat === fCat) && (!fq || f.k.includes(fq)));
   if (!fq && !fCat) out = out.filter(f => !CATS_ETENDUES.has(f.cat));
   if (state.gp && gpFilter) out = out.filter(f => gpFilter === 1 ? gpLevel(f) === 1 : gpLevel(f) < 3);
-  if (fq) out.sort((a, b) => (normalize(b.n).startsWith(fq) - normalize(a.n).startsWith(fq)) || a.n.localeCompare(b.n, 'fr'));
-  else if (fSort === 'carb') out.sort((a, b) => a.c - b.c || a.n.localeCompare(b.n, 'fr'));
-  else if (fSort === 'kcal') out.sort((a, b) => a.kcal - b.kcal || a.n.localeCompare(b.n, 'fr'));
-  else out.sort((a, b) => a.n.localeCompare(b.n, 'fr'));
+  if (fq) {
+    /* Le rang « commence par » se calcule une fois par aliment, pas a chaque
+       comparaison : l'ancienne version appelait normalize() deux fois par
+       comparaison, soit des centaines de milliers d'appels par frappe.
+       f.k est deja normalise et commence par le nom. */
+    for (const f of out) f._r = f.k.startsWith(fq) ? 0 : 1;
+    out.sort((a, b) => a._r - b._r || parNom(a, b));
+  }
+  else if (fSort === 'carb') out.sort((a, b) => a.c - b.c || parNom(a, b));
+  else if (fSort === 'kcal') out.sort((a, b) => a.kcal - b.kcal || parNom(a, b));
+  else out.sort(parNom);
   return out;
 }
 
@@ -3520,7 +3535,7 @@ function renderFoods(onlineMsg) {
     $('#askClaude').onclick = askClaudeFood;
     $('#offBtn').onclick = () => offSearch(fq);
     renderBar();
-    return;
+    return 0;
   }
 
   const shown = res.slice(0, fLimit);
@@ -3606,6 +3621,7 @@ function renderFoods(onlineMsg) {
   const ob = $('#offBtn');
   if (ob) ob.onclick = () => offSearch(fq);
   renderBar();
+  return res.length;
 }
 
 function addFoodToJournal(name) {
