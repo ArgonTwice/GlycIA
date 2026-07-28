@@ -1265,7 +1265,8 @@ const CAT_ICON = {
   'Sauces, matières grasses & apéro':'🫗','Cuisine du monde':'🌍',
   'Spécialités régionales françaises':'🇫🇷','Petit-déjeuner & tartines':'🥐',
   'Épicerie, farines & basiques':'🧂','Sans gluten, végétarien & spécifique':'🌱',
-  'Sport & diététique':'💪','Trouvés en ligne':'🌐','Ajoutés par Claude':'✨'
+  'Sport & diététique':'💪','Trouvés en ligne':'🌐','Ajoutés par Claude':'✨',
+  'Mes produits':'🛒'
 };
 
 /* Corrections en boucle courte : ouvre une issue GitHub pré-remplie, une Action ouvre la PR sur db.json */
@@ -2933,14 +2934,45 @@ function offToFood(p, code) {
   if (!name) return null;
   name = withBrand(name, p.brands);
   return {
-    n: name, cat: 'Trouvés en ligne', code,
+    n: name, cat: MYCAT, code,
     c: clamp(round(c, 1), 0, 100),
     ig: guessIG(name + ' ' + (p.categories || ''), c, +nu.sugars_100g, +nu.fiber_100g),
     kcal: clamp(Math.round(+nu['energy-kcal_100g'] || 0), 0, 900),
     pw: clamp(Math.round(+p.serving_quantity || 100), 5, 900),
     pl: String(p.serving_size || '1 portion').slice(0, 22),
-    k: normalize(name + ' trouves en ligne'), off: true
+    k: normalize(name + ' ' + MYCAT), off: true
   };
+}
+
+/* ---------- Produits scannés : conservés d'une session à l'autre ----------
+   Le Service Worker garde la réponse HTTP d'Open Food Facts, mais l'aliment
+   lui-même vivait en mémoire : il disparaissait de la base au rechargement.
+   Même format compact que db.json, plus le code-barres. */
+const MYCAT = 'Mes produits';
+const MYKEY = 'glycia.myfoods';
+const MYMAX = 200;
+
+function saveMyFoods() {
+  const mine = ALL.filter(f => f.code).slice(-MYMAX);
+  store.set(MYKEY, JSON.stringify(mine.map(f => [f.n, f.c, f.ig, f.kcal, f.pw, f.pl, f.code])));
+}
+
+function loadMyFoods() {
+  const raw = store.get(MYKEY);
+  if (!raw) return;
+  try {
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return;
+    list.forEach(a => {
+      if (!Array.isArray(a) || !a[0]) return;
+      const f = {
+        n: a[0], cat: MYCAT, c: a[1], ig: a[2], kcal: a[3], pw: a[4], pl: a[5], code: a[6],
+        k: normalize(a[0] + ' ' + MYCAT), off: true
+      };
+      registerFood(f);
+      if (f.code) OFFCACHE.set(f.code, f);   // rescan instantané, même hors ligne
+    });
+  } catch (_) {}
 }
 
 async function fetchBarcode(code) {
@@ -2961,9 +2993,10 @@ function registerFood(f) {
   if (seenF.has(key)) return;
   seenF.add(key);
   ALL.push(f);
-  if (!CATS.includes('Trouvés en ligne')) {
-    CATS.push('Trouvés en ligne');
-    $('#foodCats').insertAdjacentHTML('beforeend', `<button class="cat" data-cat="Trouvés en ligne">🌐 En ligne</button>`);
+  if (!CATS.includes(f.cat)) {
+    CATS.push(f.cat);
+    $('#foodCats').insertAdjacentHTML('beforeend',
+      `<button class="cat" data-cat="${esc(f.cat)}">${CAT_ICON[f.cat] || '•'} ${esc(f.cat.split(/[&,]/)[0].trim())}</button>`);
     bindCats();
   }
 }
@@ -3085,6 +3118,7 @@ async function lookup(code) {
   try {
     const f = await fetchBarcode(code);
     registerFood(f);
+    saveMyFoods();
     renderScanResult(findFood(f.n) || f, cached);
   } catch (e) {
     $('#scanBody').innerHTML = `<div class="empty"><strong>Produit introuvable</strong>
@@ -3135,7 +3169,7 @@ const GP_CAT = {
   'Féculents, céréales & légumineuses':2, 'Viandes, volailles & charcuterie':2,
   'Plats préparés & cuisine maison':2, 'Petit-déjeuner & tartines':2,
   'Épicerie, farines & basiques':2, 'Sans gluten, végétarien & spécifique':2,
-  'Sport & diététique':2, 'Trouvés en ligne':2, 'Ajoutés par Claude':2,
+  'Sport & diététique':2, 'Trouvés en ligne':2, 'Ajoutés par Claude':2, 'Mes produits':2,
   'Fast-food & sandwichs':3, 'Sauces, matières grasses & apéro':3,
   'Cuisine du monde':3, 'Spécialités régionales françaises':3
 };
@@ -3371,7 +3405,7 @@ function renderSettings() {
   };
   $('#wipe').onclick = () => {
     store.del('glycia.data'); store.del('glycia.key'); store.del('glycia.proxy');
-    store.del('glycia.onboarded'); store.del('glycia.profile');
+    store.del('glycia.onboarded'); store.del('glycia.profile'); store.del(MYKEY);
     location.reload();
   };
 }
@@ -3836,6 +3870,7 @@ $('#btnScanMain').addEventListener('click', openScan);
 $('#todayLabel').textContent = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
 seedPast();
 if (!loadState()) seed();
+loadMyFoods();
 loadProfile();
 renderFavorites();
 setMascot('hello');
