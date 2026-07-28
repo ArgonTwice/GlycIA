@@ -1968,7 +1968,9 @@ function renderTimeline() {
   }
   const sorted = [...state.journal].sort((a, b) => a.time - b.time);
   const dot = { photo:'peach', favori:'', recette:'violet', menu:'sand', part:'peach', aliment:'violet' };
-  wrap.innerHTML = '<div class="tl">' + sorted.map(m => `
+  wrap.innerHTML = '<div class="tl">' + sorted.map(m => {
+    const p = personalIg(m.name, m.ig);
+    return `
     <div class="tl-item">
       <span class="tl-dot ${dot[m.src] || ''}"></span>
       <div class="meal">
@@ -1982,6 +1984,7 @@ function renderTimeline() {
             <span class="stat g">${m.carbs} g glucides</span>
             <span class="stat ${igClass(m.ig)}">${igLabel(m.ig)} · ${m.ig}</span>
             <span class="stat">CG ${round(m.ig * m.carbs / 100)}</span>
+            ${p ? `<span class="stat ${igClass(p.ig)}">IG chez toi ${p.ig}</span>` : ''}
           </div>
           ${mealCurve(m)}
         </div>
@@ -1989,7 +1992,8 @@ function renderTimeline() {
           <svg><use href="#i-trash"/></svg>
         </button>
       </div>
-    </div>`).join('') + '</div>';
+    </div>`;
+  }).join('') + '</div>';
 }
 
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
@@ -2623,8 +2627,9 @@ function computeTotals(items) {
   let carbs = 0, cg = 0;
   items.forEach(it => {
     const c = it.q * it.f.g * it.f.carb / 100;
+    const p = personalIg(it.f.n, it.f.ig);   // IG observé chez la personne s'il existe
     carbs += c;
-    cg += c * it.f.ig / 100;
+    cg += c * (p ? p.ig : it.f.ig) / 100;
   });
   const ig = carbs > 0 ? Math.round(cg / carbs * 100) : 0;
   return { carbs: Math.round(carbs), cg: Math.round(cg), ig };
@@ -3284,6 +3289,9 @@ function renderFoods(onlineMsg) {
           <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge CG</span></div>
         </div>
         <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
+        ${(() => { const p = personalIg(f.n, f.ig); return p
+          ? `<div class="fmeta" style="color:var(--violet-deep)"><b>IG chez toi : ${p.ig}</b> (base : ${f.ig}) — observé sur ${p.n} repas</div>`
+          : ''; })()}
         <div class="fport">
           <span class="lbl">${esc(f.pl)}</span>
           <div class="step">
@@ -3612,6 +3620,7 @@ async function loadGlucose(manual) {
   try {
     state.glucose = await fetchGlucose();
     renderGlucose();
+    collectResponses();        // alimente la table d'IG personnelle
     renderTimeline();          // les courbes par repas apparaissent avec les mesures
   } catch (_) {
     /* dégradation : on garde la dernière courbe connue plutôt qu'un écran vide */
@@ -3663,6 +3672,65 @@ function renderGlucose(msg) {
 }
 
 $('#cgmRefresh').addEventListener('click', () => loadGlucose(true));
+
+/* ---------- Table d'IG personnelle ----------
+   Deux personnes ne répondent pas pareil au même aliment. Après au moins
+   IGP_MIN repas portant le même nom, on rapporte l'écart réellement observé
+   à la charge glycémique attendue (glucides × IG / 100). Le rapport propre à
+   un aliment, divisé par le rapport moyen de la personne, corrige son IG.
+   C'est une observation sur ses propres repas, pas une mesure de laboratoire,
+   et ça ne dit rien de ce qu'il faut faire. */
+const IGP_KEY = 'glycia.igperso';
+const IGP_MIN = 5;
+const IGP_MAXOBS = 20;
+let IGP = { seen: [], obs: {} };
+
+function loadIgPerso() {
+  try {
+    const o = JSON.parse(store.get(IGP_KEY) || 'null');
+    if (o && o.obs) IGP = { seen: Array.isArray(o.seen) ? o.seen : [], obs: o.obs };
+  } catch (_) {}
+}
+function saveIgPerso() {
+  store.set(IGP_KEY, JSON.stringify({ seen: IGP.seen.slice(-300), obs: IGP.obs }));
+}
+
+/* Un repas ne compte qu'une fois, et seulement quand ses 3 h sont écoulées */
+function collectResponses() {
+  if (!state.glucose.length) return;
+  let added = false;
+  state.journal.forEach(m => {
+    if (IGP.seen.includes(m.id)) return;
+    if (Date.now() - +m.time < RESP_H * 3600e3) return;
+    const cg = m.carbs * m.ig / 100;
+    if (cg < 5) return;                       // trop peu de glucides pour conclure
+    const r = mealResponse(m);
+    if (!r) return;
+    const key = normalize(m.name);
+    const arr = (IGP.obs[key] = IGP.obs[key] || []);
+    arr.push(round(r.delta / cg, 3));
+    while (arr.length > IGP_MAXOBS) arr.shift();
+    IGP.seen.push(m.id);
+    added = true;
+  });
+  if (added) saveIgPerso();
+}
+
+const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
+
+function globalRatio() {
+  const all = Object.keys(IGP.obs).reduce((s, k) => s.concat(IGP.obs[k]), []);
+  return all.length ? mean(all) : null;
+}
+
+function personalIg(name, baseIg) {
+  if (!baseIg || !name) return null;
+  const arr = IGP.obs[normalize(name)];
+  if (!arr || arr.length < IGP_MIN) return null;
+  const g = globalRatio();
+  if (!g) return null;
+  return { ig: clamp(Math.round(baseIg * mean(arr) / g), 0, 100), n: arr.length };
+}
 
 /* ==========================================================================
    16. MODE RESTAURANT — géoloc puis cartes des restos autour
@@ -5444,7 +5512,7 @@ function renderSettings() {
   $('#wipe').onclick = () => {
     store.del('glycia.data'); store.del('glycia.key'); store.del('glycia.proxy');
     store.del('glycia.onboarded'); store.del('glycia.profile'); store.del(MYKEY);
-    store.del(NS_URL); store.del(NS_TOKEN);
+    store.del(NS_URL); store.del(NS_TOKEN); store.del(IGP_KEY);
     location.reload();
   };
 }
@@ -5910,6 +5978,7 @@ $('#todayLabel').textContent = new Date().toLocaleDateString('fr-FR', { weekday:
 seedPast();
 if (!loadState()) seed();
 loadMyFoods();
+loadIgPerso();
 loadProfile();
 renderFavorites();
 setMascot('hello');
