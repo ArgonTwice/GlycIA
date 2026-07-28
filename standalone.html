@@ -1781,11 +1781,26 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const round = (n, d = 0) => { const p = 10 ** d; return Math.round(n * p) / p; };
 
 /* ---------- Repère quotidien indicatif ---------- */
-/* g de glucides, purement indicatif — ajusté après l'onboarding (voir repereFor()).
-   Ce n'est ni un chiffre de l'OMS ni de l'ANSES : aucune institution ne publie
-   de cible en grammes pour une personne diabétique. C'est un ordre de grandeur
-   d'affichage, pour donner une échelle à l'anneau. Jamais un objectif. */
-let REPERE = 180;
+/* Échelle de l'anneau, en grammes de glucides. Ce n'est ni un chiffre de l'OMS
+   ni de l'ANSES : aucune institution ne publie de cible en grammes pour une
+   personne diabétique. Jamais un objectif.
+
+   Il se calait auparavant sur le traitement — 130 g en alimentaire seul, 150 g
+   en oral, 180 g sous insuline — avec pour justification « un repère plus serré
+   pour les traitements sans couverture insulinique rapide ». C'était une
+   consigne clinique déguisée en réglage d'affichage, que rien ne sourçait.
+
+   Il se cale désormais sur les journées de la personne elle-même : la médiane
+   de ses deux dernières semaines. Un miroir, pas une cible. */
+const REPERE_DEFAUT = 180;
+let REPERE = REPERE_DEFAUT;
+
+function repereObserve() {
+  const jours = PAST.slice(-14).map(p => p.carbs).filter(c => c > 0).sort((a, b) => a - b);
+  if (jours.length < 5) return REPERE_DEFAUT;   // trop peu d'historique pour dire quoi que ce soit
+  const mediane = jours[Math.floor(jours.length / 2)];
+  return clamp(Math.round(mediane / 10) * 10, 80, 320);
+}
 
 /* ==========================================================================
    1. MASCOTTE — SVG généré, expressions contextuelles
@@ -5613,8 +5628,9 @@ function renderSettings() {
         Population générale, à titre d'information — pas des objectifs à tenir, et rien à voir avec
         une consigne pour ton diabète. Les sucres libres se comptent en part de l'apport énergétique,
         soit environ 50 g pour 2000 kcal. Le repère de ${REPERE} g affiché sur l'anneau, lui,
-        n'est pas un chiffre officiel : c'est une échelle d'affichage, aucune institution ne publie
-        de cible en grammes.
+        n'est pas un chiffre officiel et n'est pas une cible : c'est la médiane de tes deux
+        dernières semaines, l'échelle de l'anneau se règle donc sur tes propres journées.
+        Aucune institution ne publie de cible en grammes.
       </p>
     </div>
     <div class="card" style="margin-top:12px">
@@ -5690,13 +5706,6 @@ $('#btnSet').addEventListener('click', () => { renderSettings(); openModal('set'
 /* ==========================================================================
    18. ONBOARDING — 3 questions au premier lancement
    ========================================================================== */
-/* Un repère plus serré pour les traitements sans couverture insulinique rapide */
-function repereFor(p) {
-  if (!p) return 180;
-  if (p.treatment === 'alimentaire') return 130;
-  if (p.treatment === 'oral') return 150;
-  return 180;
-}
 $('#m-onboard').addEventListener('click', e => {
   const b = e.target.closest('[data-obq]');
   if (!b) return;
@@ -5704,7 +5713,6 @@ $('#m-onboard').addEventListener('click', e => {
 });
 function applyProfile(p, setGpNow) {
   state.profile = p;
-  REPERE = repereFor(p);
   /* Au chargement, loadState() restaure déjà state.gp — inutile de rejouer setGp() et son message */
   if (setGpNow && p.gp && !state.gp) setGp(true);
   renderDay();
@@ -6146,6 +6154,7 @@ $('#btnScanMain').addEventListener('click', openScan);
 $('#todayLabel').textContent = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
 seedPast();
 if (!loadState()) seed();
+REPERE = repereObserve();      // après loadState : PAST est alors rempli
 loadMyFoods();
 loadIgPerso();
 loadProfile();
