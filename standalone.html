@@ -2025,9 +2025,9 @@ function renderTimeline() {
           </div>
           <div class="meal-stats">
             <span class="stat g">${m.carbs} g glucides</span>
-            <span class="stat ${igClass(m.ig)}">${igLabel(m.ig)} · ${m.ig}</span>
+            <span class="stat ${igClass(m.ig)}">${igLabel(m.ig)} · ~${m.ig}</span>
             <span class="stat">CG ${round(m.ig * m.carbs / 100)}</span>
-            ${p ? `<span class="stat ${igClass(p.ig)}">IG chez toi ${p.ig}</span>` : ''}
+            ${p ? `<span class="stat ${igClass(p.ig)}">IG chez toi ~${p.ig}</span>` : ''}
           </div>
           ${mealCurve(m)}
         </div>
@@ -2740,8 +2740,8 @@ function renderResult() {
     <div class="recap">
       <div class="recap-grid">
         <div class="recap-cell"><div class="v" id="rCarb" style="color:var(--peach-deep)">${t.carbs}</div><div class="k">Glucides</div><div class="h">grammes</div></div>
-        <div class="recap-cell"><div class="v" id="rIg" style="color:${igCol}">${t.ig}</div><div class="k">Indice IG</div><div class="h" id="rIgL">${igLabel(t.ig)}</div></div>
-        <div class="recap-cell"><div class="v" id="rCg" style="color:var(--violet-deep)">${t.cg}</div><div class="k">Charge CG</div><div class="h" id="rCgL">${cgLabel(t.cg)}</div></div>
+        <div class="recap-cell"><div class="v" id="rIg" style="color:${igCol}">~${t.ig}</div><div class="k">IG non vérifié</div><div class="h" id="rIgL">${igLabel(t.ig)}</div></div>
+        <div class="recap-cell"><div class="v" id="rCg" style="color:var(--violet-deep)">${t.cg}</div><div class="k">Charge indicative</div><div class="h" id="rCgL">${cgLabel(t.cg)}</div></div>
       </div>
       <div class="recap-bar"><i id="rBar" style="width:${clamp(t.carbs / 120 * 100, 3, 100)}%;background:${igCol}"></i></div>
     </div>
@@ -3164,7 +3164,7 @@ Object.entries(FOODDB).forEach(([cat, list]) => list.forEach(a => {
              Absent = valeur inconnue, gpFat() retombe sur son estimation.
      a[7] : code Ciqual de l'aliment apparié. Sa présence dit que glucides et
              calories viennent de la table ; sinon ils viennent de l'étiquetage. */
-  ALL.push({ n:a[0], cat, c:a[1], ig:a[2], kcal:a[3], pw:a[4], pl:a[5], lip:a[6], ciq:a[7],
+  ALL.push({ n:a[0], cat, c:a[1], ig:a[2], kcal:a[3], pw:a[4], pl:a[5], lip:a[6], ciq:a[7], bar:a[8],
              k:normalize(a[0] + ' ' + cat) });
 }));
 
@@ -3494,21 +3494,26 @@ function renderFoods(onlineMsg) {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${carbs}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(f.ig)}">${f.ig || '—'}</b><span>Indice IG</span></div>
-          <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge CG</span></div>
+          <div><b style="color:${igCol(f.ig)}">${f.ig ? '~' + f.ig : '—'}</b><span>IG non vérifié</span></div>
+          <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge indicative</span></div>
         </div>
         ${state.gp ? `<div class="gp-why ${GP_MARK[gpLevel(f)][0]}">
           <b>${GP_MARK[gpLevel(f)][1]} ${GP_MARK[gpLevel(f)][2]} avec un estomac lent</b>
           ${gpReason(f).map(r => `<p>${esc(r)}</p>`).join('')}
         </div>` : ''}
         <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
-        <div class="fsrc">${f.usda ? '🇺🇸 FoodData Central, USDA'
-          : f.off ? '🌐 Open Food Facts, saisi par les contributeurs'
+        <div class="fsrc" style="color:var(--terra-deep)">
+          ⚠️ <b>IG non vérifié</b> — ordre de grandeur, jamais confronté à une table de référence.
+          La charge en découle, elle est indicative elle aussi. Les glucides, eux, sont sourcés.
+        </div>
+        <div class="fsrc"${f.ciq || f.bar || f.off ? '' : ' style="color:var(--terra-deep)"'}>${
+            f.usda ? '🇺🇸 FoodData Central, USDA'
+          : f.off ? '🌐 Open Food Facts — valeur déclarée par le fabricant, saisie par les contributeurs'
           : f.ciq ? `📗 Table Ciqual 2025 de l’ANSES <a href="https://ciqual.anses.fr/#/aliments/${f.ciq}" target="_blank" rel="noopener">fiche ${f.ciq}</a>`
-          : '🏷️ Étiquetage fabricant — absent de Ciqual'}${
-          f.igEst ? '<br>IG estimé — aucune de ces tables ne le publie' : ''}</div>
+          : f.bar ? `🏷️ Étiquetage fabricant <a href="https://world.openfoodfacts.org/product/${f.bar}" target="_blank" rel="noopener">code ${f.bar}</a>`
+          : '⚠️ <b>Glucides non vérifiés</b> — saisis à la main, sans source retrouvée. Scanne le paquet pour avoir la vraie valeur.'}</div>
         ${(() => { const p = personalIg(f.n, f.ig); return p
-          ? `<div class="fmeta" style="color:var(--violet-deep)"><b>IG chez toi : ${p.ig}</b> (base : ${f.ig}) — observé sur ${p.n} repas</div>`
+          ? `<div class="fmeta" style="color:var(--violet-deep)"><b>IG chez toi : ~${p.ig}</b> (base : ~${f.ig}) — observé sur ${p.n} repas, à partir d’un IG de base non vérifié</div>`
           : ''; })()}
         <div class="fport">
           <span class="lbl">${esc(f.pl)}</span>
@@ -4053,7 +4058,7 @@ function renderGastro() {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(r.ig)}">${r.ig || '—'}</b><span>Indice IG</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG non vérifié</span></div>
           <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
         </div>
         <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
@@ -4171,7 +4176,7 @@ function renderRamadan() {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(r.ig)}">${r.ig || '—'}</b><span>Indice IG</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG non vérifié</span></div>
           <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
         </div>
         <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
@@ -4282,7 +4287,7 @@ function renderGE() {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(r.ig)}">${r.ig || '—'}</b><span>Indice IG</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG non vérifié</span></div>
           <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
         </div>
         <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
@@ -4391,7 +4396,7 @@ function renderSport() {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${r.c}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(r.ig)}">${r.ig || '—'}</b><span>Indice IG</span></div>
+          <div><b style="color:${igCol(r.ig)}">${r.ig ? '~' + r.ig : '—'}</b><span>IG non vérifié</span></div>
           <div><b style="color:var(--violet-deep)">${r.kcal}</b><span>kcal</span></div>
         </div>
         <div class="eyebrow" style="margin:4px 0 8px">Ingrédients</div>
@@ -5348,8 +5353,8 @@ function renderScanResult(f, cached) {
       </div>
       <div class="fgrid">
         <div><b style="color:var(--peach-deep)">${carbs}</b><span>Glucides g</span></div>
-        <div><b style="color:${igCol(f.ig)}">${f.ig || '—'}</b><span>Indice IG</span></div>
-        <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge CG</span></div>
+        <div><b style="color:${igCol(f.ig)}">${f.ig ? '~' + f.ig : '—'}</b><span>IG non vérifié</span></div>
+        <div><b style="color:var(--violet-deep)">${cg}</b><span>Charge indicative</span></div>
       </div>
       <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
       <div class="fport">

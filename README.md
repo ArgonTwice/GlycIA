@@ -163,9 +163,18 @@ L'outil télécharge Ciqual, apparie les aliments par nom et signale les écarts
 
 Ce sont des **estimations**. Les valeurs de l'app décrivent l'aliment **prêt à manger**, pas cru — c'est ce qui compte dans une assiette, mais ça diffère de la ligne Ciqual correspondante pour tous les féculents. Recettes maison, marques et tailles de portion font varier le reste.
 
-Sur les 1 042 aliments, 853 n'ont pas d'équivalent Ciqual : produits de marque, plats de chaîne et sandwichs, dont les valeurs viennent de l'étiquetage.
+### État réel du sourçage
 
-Chaque aliment porte sa provenance. La fiche l'affiche : **table Ciqual** avec un lien vers la fiche officielle, **étiquetage fabricant** quand l'aliment n'y figure pas, ou **Open Food Facts** pour les produits scannés. 189 aliments portent leur code Ciqual, 178 leurs lipides mesurés.
+| | Aliments | Source |
+|---|---|---|
+| Tracés | **189** | Table Ciqual, code à l'appui, vérifiable en ligne |
+| Non vérifiés | **853** | Saisis à la main, source non retrouvée |
+
+La fiche affiche l'état de chaque aliment sans le maquiller. Un aliment non vérifié le dit en rouge et renvoie vers le scan du paquet.
+
+**Pourquoi les 853 restent non vérifiés.** Ce sont des entrées génériques — « Pizza margherita », « Big Mac », « Kebab sandwich ». Ciqual ne les couvre pas. `tools/audit-etiquettes.mjs` a tenté de les rapprocher des étiquettes d'Open Food Facts : ça trouve des correspondances, mais un code-barres désigne *un produit précis*, pas une catégorie. Attacher le code d'une pizza surgelée particulière à la ligne générique donnerait l'apparence d'une source sans en être une. L'outil est là, ses garde-fous sont documentés, et **il n'a pas été appliqué** — délibérément.
+
+Pour ces aliments, la réponse honnête de l'app est son bouton principal : **scanne le paquet**. Le code-barres donne la valeur déclarée du produit que tu as réellement en main, sous le règlement UE 1169/2011.
 
 ## Avertissement
 
