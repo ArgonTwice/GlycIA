@@ -1,7 +1,17 @@
 /* GlycIA — Service Worker
-   Shell en cache-first, Open Food Facts en stale-while-revalidate,
-   API Anthropic jamais mise en cache. */
-const C = 'glycia-v1';
+   Shell en stale-while-revalidate, Open Food Facts pareil,
+   API Anthropic jamais mise en cache.
+
+   Le shell était en cache-first sur un cache nommé 'glycia-v1', jamais
+   renommé. Conséquence : une fois l'app installée, aucune mise à jour ne
+   parvenait jamais à l'utilisateur — ni corps de l'app, ni db.json. Des
+   valeurs d'aliments corrigées restaient invisibles indéfiniment.
+
+   Le shell est donc servi depuis le cache pour rester instantané et
+   utilisable hors ligne, mais toujours re-téléchargé en arrière-plan : le
+   chargement suivant a la version à jour. Un rechargement de retard au
+   lieu d'aucune mise à jour. */
+const C = 'glycia-v2';
 const SHELL = ['./', './index.html', './app.js', './db.json', './icon.svg', './manifest.webmanifest'];
 
 self.addEventListener('install', e => {
@@ -44,11 +54,16 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  /* Shell : on rend le cache tout de suite, et on rafraîchit derrière.
+     `cache: 'reload'` contourne le cache HTTP du navigateur, sinon celui-ci
+     peut resservir un fichier périmé au Service Worker lui-même. */
   e.respondWith(caches.open(C).then(async c => {
     const hit = await c.match(e.request);
-    if (hit) return hit;
-    try { const r = await fetch(e.request); c.put(e.request, r.clone()); return r; }
-    catch (_) { return hit || Response.error(); }
+    const reseau = fetch(new Request(e.request, { cache: 'reload' }))
+      .then(r => { if (r && r.ok) c.put(e.request, r.clone()); return r; })
+      .catch(() => hit);
+    if (hit) { e.waitUntil(reseau); return hit; }
+    return (await reseau) || Response.error();
   }));
 });
 
