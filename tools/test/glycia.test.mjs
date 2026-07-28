@@ -129,6 +129,12 @@ describe('gastroparésie — lipides', () => {
     const estime = gpFat({ n: 'x', c: 0, kcal: 500 });
     assert.ok(estime > 0 && estime < 60, String(estime));
   });
+  /* Piège : un trou du tableau JSON devient null, et isFinite(null) vaut true.
+     Sans garde, un aliment sans lipides connus passerait pour 0 g de gras. */
+  test('lipides à null : on estime, on ne lit pas 0', () => {
+    assert.ok(gpFat({ n: 'x', c: 0, kcal: 500, lip: null }) > 0);
+    assert.equal(gpFat({ n: 'x', c: 0, kcal: 500, lip: 0 }), 0);
+  });
   /* Régression : le whisky était crédité de 21 g de lipides par l'estimation */
   test('la provenance du chiffre est indiquée', () => {
     const r = gpReason({ n: 'Test gras', cat: 'Sauces, matières grasses & apéro', c: 0, kcal: 400, lip: 40 });
@@ -251,6 +257,14 @@ describe('intégrité de la base', () => {
       if (!f.kcal) continue;
       const parGramme = POLYOLS.test(f.n) ? 2.4 : 4;
       assert.ok(f.c * parGramme <= f.kcal * 1.35 + 20, `${f.n} : ${f.c} g pour ${f.kcal} kcal`);
+    }
+  });
+  test('la provenance est exploitable quand elle est là', () => {
+    const sources = ALL.filter(f => f.ciq != null);
+    assert.ok(sources.length > 100, `${sources.length} aliments sourcés Ciqual`);
+    for (const f of sources) {
+      assert.equal(typeof f.ciq, 'number', `${f.n} : code ${f.ciq}`);
+      assert.ok(f.ciq > 0 && Number.isInteger(f.ciq), `${f.n} : code ${f.ciq}`);
     }
   });
   test('aucun doublon de nom', () => {

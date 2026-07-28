@@ -133,7 +133,7 @@ function apparier(nom) {
 const db = JSON.parse(fs.readFileSync(DB, 'utf8'));
 const SEUIL_REL = 0.15, SEUIL_ABS = 2;   // en deçà, l'écart n'est pas significatif
 
-const corrections = [], aTrancher = [], enrichis = [], ignores = new Map();
+const corrections = [], aTrancher = [], enrichis = [], sources = [], ignores = new Map();
 let total = 0;
 
 for (const bloc of ['FOODDB', 'FOODDB2']) {
@@ -147,6 +147,9 @@ for (const bloc of ['FOODDB', 'FOODDB2']) {
          une correction mais un champ que la base n'avait pas. Ils pilotent le
          classement gastroparésie, jusqu'ici déduit des calories. */
       if (top.lip !== undefined && a[6] !== top.lip) enrichis.push({ ref: a, nom, lip: top.lip });
+      /* 8e champ : le code Ciqual apparié. Il dit d'où viennent glucides et
+         calories, et permet de retrouver la fiche exacte. */
+      if (a[7] !== +top.code) sources.push({ ref: a, nom, code: +top.code, ciqual: top.nom });
       const dG = Math.abs(gluc - top.gluc), dK = Math.abs(kcal - top.kcal);
       const sigG = dG > SEUIL_ABS && dG / Math.max(1, top.gluc) > SEUIL_REL;
       const sigK = dK > 15 && dK / Math.max(1, top.kcal) > SEUIL_REL;
@@ -171,6 +174,7 @@ const fmt = l => `  ${l.nom}\n      CIQUAL « ${l.ciqual} » (${l.code}, couvert
   + `      glucides ${l.gluc[0]} → ${l.gluc[1]}   |   kcal ${l.kcal[0]} → ${l.kcal[1]}`;
 
 console.log(`\n${enrichis.length} aliment(s) à enrichir de leurs lipides Ciqual`);
+console.log(`${sources.length} aliment(s) à marquer de leur code Ciqual d'origine`);
 console.log(`\n${corrections.length} correction(s) sûre(s) :\n`);
 corrections.forEach(l => console.log(fmt(l)));
 if (ALL || !APPLY) {
@@ -182,8 +186,9 @@ if (APPLY) {
   /* --all applique aussi la liste à trancher : à ne faire qu'après l'avoir lue. */
   const aEcrire = ALL ? corrections.concat(aTrancher) : corrections;
   for (const l of aEcrire) { l.ref[1] = l.gluc[1]; l.ref[3] = Math.round(l.kcal[1]); }
-  /* 7e champ du format aliment : lipides g/100 g */
+  /* 7e et 8e champs du format aliment : lipides, puis code Ciqual d'origine */
   for (const e of enrichis) e.ref[6] = e.lip;
+  for (const s of sources) { if (s.ref.length < 7) s.ref[6] = null; s.ref[7] = s.code; }
   /* db.json est minifié sur une seule ligne : on ne change pas ce format,
      le reformater ferait passer le fichier de 1 à 11 643 lignes. */
   fs.writeFileSync(DB, JSON.stringify(db));
@@ -196,6 +201,7 @@ if (APPLY) {
   }
   console.log(`\n✓ ${aEcrire.length} valeurs alignées sur CIQUAL 2025`);
   console.log(`✓ ${enrichis.length} aliments enrichis de leurs lipides`);
+  console.log(`✓ ${sources.length} aliments marqués de leur code Ciqual`);
   console.log(`✓ db.json réécrit, journal : tools/ciqual-corrections.json`);
 } else {
   console.log(`\n(rapport seul — relancer avec --apply pour écrire, --apply --all pour inclure les cas relus)`);

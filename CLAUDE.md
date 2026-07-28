@@ -15,9 +15,13 @@ Voir `ROADMAP.md` : chaque bloc est une specification autonome, prete a implemen
 ## Regles
 - Aucune dependance externe hors Google Fonts. Pas de framework, pas de bundler.
 - Toute donnee alimentaire va dans `db.json`, jamais en dur dans `app.js`.
-- Format aliment : `[nom, glucides/100g, IG, kcal/100g, poids portion, libelle portion, lipides/100g?]`.
-  Le 7e champ est facultatif : present quand Ciqual publie les lipides, absent sinon.
-  Il pilote le classement gastroparesie ; sans lui, `gpFat()` les deduit des calories.
+- Format aliment : `[nom, glucides/100g, IG, kcal/100g, poids portion, libelle portion, lipides/100g?, code Ciqual?]`.
+  Les deux derniers champs sont facultatifs et remplis par `tools/audit-ciqual.mjs`.
+  - 7e : lipides. Pilote le classement gastroparesie ; absent, `gpFat()` les deduit des calories.
+  - 8e : code Ciqual de l'aliment apparie. Sa presence dit que glucides et calories
+    viennent de la table ; sinon ils viennent de l'etiquetage fabricant.
+  Attention : un trou de tableau devient `null` en JSON, et `isFinite(null)` vaut `true`.
+  Toujours tester `!= null` avant `isFinite` sur ces champs.
 - Les appels a api.anthropic.com passent tous par `aiHeaders()`. Jamais de cle en dur.
 - Chaque fonction reseau doit degrader proprement : base locale en secours, jamais d'ecran vide.
 - Zero contenu culpabilisant : c'est le principe de l'app. Pas de score, pas d'interdit.

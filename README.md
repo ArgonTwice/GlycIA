@@ -139,7 +139,9 @@ L'outil télécharge Ciqual, apparie les aliments par nom et signale les écarts
 
 Ce sont des **estimations**. Les valeurs de l'app décrivent l'aliment **prêt à manger**, pas cru — c'est ce qui compte dans une assiette, mais ça diffère de la ligne Ciqual correspondante pour tous les féculents. Recettes maison, marques et tailles de portion font varier le reste.
 
-Sur les 1 042 aliments, 827 n'ont pas d'équivalent Ciqual : produits de marque, plats de chaîne et sandwichs, dont les valeurs viennent de l'étiquetage.
+Sur les 1 042 aliments, 853 n'ont pas d'équivalent Ciqual : produits de marque, plats de chaîne et sandwichs, dont les valeurs viennent de l'étiquetage.
+
+Chaque aliment porte sa provenance. La fiche l'affiche : **table Ciqual** avec un lien vers la fiche officielle, **étiquetage fabricant** quand l'aliment n'y figure pas, ou **Open Food Facts** pour les produits scannés. 189 aliments portent leur code Ciqual, 178 leurs lipides mesurés.
 
 ## Avertissement
 

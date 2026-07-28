@@ -1390,8 +1390,10 @@ Object.entries(FOODDB).forEach(([cat, list]) => list.forEach(a => {
   if (seenF.has(key)) return;
   seenF.add(key);
   /* a[6] : lipides g/100 g, présent quand Ciqual les publie pour cet aliment.
-     Absent = valeur inconnue, gpFat() retombe alors sur son estimation. */
-  ALL.push({ n:a[0], cat, c:a[1], ig:a[2], kcal:a[3], pw:a[4], pl:a[5], lip:a[6],
+             Absent = valeur inconnue, gpFat() retombe sur son estimation.
+     a[7] : code Ciqual de l'aliment apparié. Sa présence dit que glucides et
+             calories viennent de la table ; sinon ils viennent de l'étiquetage. */
+  ALL.push({ n:a[0], cat, c:a[1], ig:a[2], kcal:a[3], pw:a[4], pl:a[5], lip:a[6], ciq:a[7],
              k:normalize(a[0] + ' ' + cat) });
 }));
 
@@ -1616,6 +1618,9 @@ function renderFoods(onlineMsg) {
           ${gpReason(f).map(r => `<p>${esc(r)}</p>`).join('')}
         </div>` : ''}
         <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
+        <div class="fsrc">${f.off ? '🌐 Open Food Facts, saisi par les contributeurs'
+          : f.ciq ? `📗 Table Ciqual 2025 de l’ANSES <a href="https://ciqual.anses.fr/#/aliments/${f.ciq}" target="_blank" rel="noopener">fiche ${f.ciq}</a>`
+          : '🏷️ Étiquetage fabricant — absent de Ciqual'}</div>
         ${(() => { const p = personalIg(f.n, f.ig); return p
           ? `<div class="fmeta" style="color:var(--violet-deep)"><b>IG chez toi : ${p.ig}</b> (base : ${f.ig}) — observé sur ${p.n} repas</div>`
           : ''; })()}
@@ -3603,9 +3608,11 @@ const GP_CAT = {
    est là on l'utilise telle quelle. Sinon on retombe sur l'ancienne déduction
    à partir des calories — grossière, mais le gras est LE facteur qui ralentit
    la vidange, mieux vaut l'estimer que l'ignorer. */
-const gpFat = f => isFinite(f.lip) ? +f.lip
+/* f.lip vaut null quand le champ est un trou du tableau JSON, et
+   isFinite(null) renvoie true : il faut écarter null explicitement. */
+const gpFatMesure = f => f.lip != null && isFinite(f.lip);
+const gpFat = f => gpFatMesure(f) ? +f.lip
   : Math.max(0, (f.kcal || 0) - (f.c || 0) * 4 - 60) / 9;
-const gpFatMesure = f => isFinite(f.lip);
 
 function gpLevel(f) {
   if (f._gp) return f._gp;
