@@ -129,6 +129,18 @@ const state = {
   glucose: []          // [{ t: Date, mgdl }] — fenêtre 24 h, capteur Nightscout
 };
 
+/* Table d'IG personnelle (section 30). Déclarée ici, et pas à côté de sa
+   logique : renderFoods() tourne à l'évaluation du module et appelle
+   personalIg(), donc ces valeurs doivent exister avant. */
+const IGP_KEY = 'glycia.igperso';
+const IGP_MIN = 5;                 // repas du même nom avant de corriger un IG
+const IGP_MAXOBS = 20;             // observations gardées par aliment
+let IGP = { seen: [], obs: {} };
+const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
+
+/* La France lit en g/L, Nightscout renvoie des mg/dL */
+const toGl = v => (v / 100).toFixed(2).replace('.', ',');
+
 /* Démo pré-chargée */
 function seed() {
   const now = new Date();
@@ -1837,9 +1849,6 @@ const NS_TOKEN = 'glycia.nsToken';
 const nsUrl = () => (store.get(NS_URL) || '').trim().replace(/\/+$/, '');
 const nsToken = () => (store.get(NS_TOKEN) || '').trim();
 
-/* La France lit en g/L, Nightscout renvoie des mg/dL */
-const toGl = v => (v / 100).toFixed(2).replace('.', ',');
-
 async function fetchGlucose() {
   const base = nsUrl();
   if (!base) return [];
@@ -1924,10 +1933,10 @@ $('#cgmRefresh').addEventListener('click', () => loadGlucose(true));
    un aliment, divisé par le rapport moyen de la personne, corrige son IG.
    C'est une observation sur ses propres repas, pas une mesure de laboratoire,
    et ça ne dit rien de ce qu'il faut faire. */
-const IGP_KEY = 'glycia.igperso';
-const IGP_MIN = 5;
-const IGP_MAXOBS = 20;
-let IGP = { seen: [], obs: {} };
+/* addFoodToJournal() suffixe le nom par la portion : « Nutella (1½ portion) ».
+   Sans retirer ce suffixe, le même aliment pris à deux portions différentes
+   compte pour deux aliments et n'atteint jamais le seuil de IGP_MIN repas. */
+function igKey(name) { return normalize(String(name).replace(/\s*\([^)]*\)\s*$/, '').trim()); }
 
 function loadIgPerso() {
   try {
@@ -1950,7 +1959,7 @@ function collectResponses() {
     if (cg < 5) return;                       // trop peu de glucides pour conclure
     const r = mealResponse(m);
     if (!r) return;
-    const key = normalize(m.name);
+    const key = igKey(m.name);
     const arr = (IGP.obs[key] = IGP.obs[key] || []);
     arr.push(round(r.delta / cg, 3));
     while (arr.length > IGP_MAXOBS) arr.shift();
@@ -1960,8 +1969,6 @@ function collectResponses() {
   if (added) saveIgPerso();
 }
 
-const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
-
 function globalRatio() {
   const all = Object.keys(IGP.obs).reduce((s, k) => s.concat(IGP.obs[k]), []);
   return all.length ? mean(all) : null;
@@ -1969,7 +1976,7 @@ function globalRatio() {
 
 function personalIg(name, baseIg) {
   if (!baseIg || !name) return null;
-  const arr = IGP.obs[normalize(name)];
+  const arr = IGP.obs[igKey(name)];
   if (!arr || arr.length < IGP_MIN) return null;
   const g = globalRatio();
   if (!g) return null;
@@ -3247,7 +3254,7 @@ async function openScan(opts) {
   if (!('BarcodeDetector' in window)) {
     body.innerHTML = `<div class="empty"><strong>Scanner indisponible</strong>
       Ce navigateur ne gère pas la lecture de codes-barres (Chrome et Android l'acceptent).
-      Tu peux saisir le code à la main.</div>` + manualBox();
+      Tu peux saisir le code à la main.</div>` + scanLogBox() + manualBox();
     bindManual();
     return;
   }
@@ -3256,7 +3263,7 @@ async function openScan(opts) {
     <p class="foot-note" id="bdMsg">${shopMode
       ? 'Enchaîne les paquets : la caméra reste ouverte entre deux codes.'
       : 'Vise le code-barres du paquet, bien à plat et éclairé.'}</p>`
-    + (shopMode ? `<div id="scanLog"></div>` : '') + manualBox();
+    + scanLogBox() + manualBox();
   bindManual();
   try {
     const det = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });
@@ -3282,10 +3289,15 @@ async function openScan(opts) {
   } catch (e) {
     stopBd();
     body.innerHTML = `<div class="empty"><strong>Caméra bloquée</strong>
-      Permission refusée ou aperçu intégré. Saisis le code à la main, ça marche aussi.</div>` + manualBox();
+      Permission refusée ou aperçu intégré. Saisis le code à la main, ça marche aussi.</div>`
+      + scanLogBox() + manualBox();
     bindManual();
   }
 }
+
+/* Le journal du mode courses. Présent dans les trois branches de openScan() :
+   sans lui, une saisie manuelle cochait la liste sans rien afficher. */
+function scanLogBox() { return shopMode ? `<div id="scanLog" style="margin-top:12px"></div>` : ''; }
 
 const manualBox = () => `
   <div class="searchbox" style="margin-top:12px">
