@@ -2425,45 +2425,119 @@ document.addEventListener('keydown', e => {
    ========================================================================== */
 const T_TOTAL = 15 * 60;
 const RC = 2 * Math.PI * 52;
+const HYPO_FIN = 'glycia.hypoFin';       // instant de fin, pour survivre à la veille
+
+/* Le minuteur se cale sur l'horloge, pas sur ses propres battements.
+   Un `setInterval` qui décrémente un compteur suppose que chaque seconde
+   arrive : sur un téléphone, l'onglet en arrière-plan est ralenti et l'écran
+   verrouillé le fige tout à fait. Quinze minutes de pause devenaient vingt ou
+   trente sans que rien ne le signale — et sur cet écran-là, se tromper sur le
+   moment de recontrôler n'est pas anodin.
+
+   Corollaire : la fin est un instant, pas un décompte. L'app peut être fermée
+   et rouverte, le minuteur reprend où il en est. */
+let tFin = null;                          // instant de fin, ms epoch, ou null
 let tLeft = T_TOTAL, tId = null, tRunning = false;
+
+const restant = () => tFin === null ? tLeft : Math.max(0, Math.round((tFin - Date.now()) / 1000));
 
 function paintTimer() {
   const m = Math.floor(tLeft / 60), s = tLeft % 60;
   $('#timerVal').textContent = m + ':' + String(s).padStart(2, '0');
   $('#timerRing').style.strokeDashoffset = RC * (1 - tLeft / T_TOTAL);
 }
+
+/* Garder l'écran allumé pendant la pause : le poser et le voir s'éteindre,
+   c'est manquer la fin du minuteur. Silencieux si le navigateur ne sait pas. */
+let veille = null;
+async function ecranAllume(on) {
+  try {
+    if (on) {
+      if (!veille && 'wakeLock' in navigator) veille = await navigator.wakeLock.request('screen');
+    } else if (veille) { await veille.release(); veille = null; }
+  } catch (_) { veille = null; }
+}
 function timerBtn(run) {
   $('#timerToggle').innerHTML = run
     ? '<svg><use href="#i-pause"/></svg> Pause'
     : '<svg><use href="#i-play"/></svg> ' + (tLeft === T_TOTAL ? 'Lancer' : 'Reprendre');
 }
+/* Les paliers se déclenchent au FRANCHISSEMENT, pas sur une valeur exacte :
+   une seconde sautée — et il en saute, dès que l'onglet passe derrière — et
+   l'annonce ne serait jamais venue.
+
+   Le texte des 5 minutes disait « 5 minutes passées » à un moment où il en
+   restait 5, donc où 10 étaient passées. Sur cet écran, se tromper de sens
+   n'est pas une coquille. */
 function tick() {
-  tLeft--;
+  const avant = tLeft;
+  tLeft = restant();
   paintTimer();
-  if (tLeft === 600 && hypoMode) speakFr('Encore dix minutes.');
-  if (tLeft === 300) {
-    $('#timerMsg').textContent = '5 minutes passées. Reste assis, ça remonte.';
+  if (avant > 600 && tLeft <= 600 && hypoMode) speakFr('Encore dix minutes.');
+  if (avant > 300 && tLeft <= 300) {
+    $('#timerMsg').textContent = '10 minutes passées, encore 5. Reste assis, ça remonte.';
     if (hypoMode) speakFr('Encore cinq minutes.');
   }
-  if (tLeft <= 0) {
-    stopTimer();
-    tLeft = 0; paintTimer();
-    $('#timerMsg').innerHTML = '15 minutes écoulées — <b>recontrôle ta glycémie maintenant.</b> Toujours sous 0,70 g/L ? Reprends 15 g.';
-    $('#timerMsg').classList.add('done');
-    chime();
-    if (hypoMode) speakFr('Quinze minutes écoulées. Recontrôle ta glycémie maintenant.');
-  }
+  if (tLeft <= 0) finTimer();
 }
-function stopTimer() { clearInterval(tId); tId = null; tRunning = false; timerBtn(false); }
+
+function finTimer() {
+  stopTimer();
+  tLeft = 0; paintTimer();
+  $('#timerMsg').innerHTML = '15 minutes écoulées — <b>recontrôle ta glycémie maintenant.</b> Toujours sous 0,70 g/L ? Reprends 15 g.';
+  $('#timerMsg').classList.add('done');
+  chime();
+  if (hypoMode) speakFr('Quinze minutes écoulées. Recontrôle ta glycémie maintenant.');
+}
+
+function stopTimer() {
+  clearInterval(tId); tId = null; tRunning = false;
+  tLeft = restant(); tFin = null;
+  store.del(HYPO_FIN);
+  ecranAllume(false);
+  timerBtn(false);
+}
 function startTimer() {
   if (tRunning) return;
+  if (tLeft <= 0) tLeft = T_TOTAL;
+  tFin = Date.now() + tLeft * 1000;
+  store.set(HYPO_FIN, String(tFin));
   tRunning = true; tId = setInterval(tick, 1000); timerBtn(true);
+  ecranAllume(true);
   $('#timerMsg').classList.remove('done');
   $('#timerMsg').textContent = 'Pas de panique, pas de resucrage supplémentaire avant la fin. Respire.';
 }
+
+/* Au retour d'un écran verrouillé, on recale tout de suite plutôt que
+   d'attendre le prochain battement — et on redemande l'écran allumé, que le
+   système a repris pendant l'absence. */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !tRunning) return;
+  tick();
+  if (tRunning) ecranAllume(true);
+});
+
+/* Le minuteur survit à la fermeture de l'app : c'est un instant de fin qui est
+   gardé, pas un décompte. Rouvrir GlycIA au milieu d'une hypo doit retrouver
+   la pause en cours, pas la remettre à quinze minutes. */
+function reprendreTimer() {
+  const fin = +store.get(HYPO_FIN);
+  if (!fin || !isFinite(fin)) return;
+  if (fin <= Date.now()) { store.del(HYPO_FIN); return; }
+  tFin = fin;
+  tLeft = restant();
+  tRunning = true; tId = setInterval(tick, 1000); timerBtn(true);
+  paintTimer();
+  ecranAllume(true);
+  $('#timerMsg').textContent = 'Pause reprise là où tu l’avais laissée.';
+}
+
 function chime() {
   try {
     const ac = new (window.AudioContext || window.webkitAudioContext)();
+    /* Un contexte audio créé hors geste direct démarre suspendu : sans ça, le
+       signal de fin ne sonnait pas — le seul moment où il sert vraiment. */
+    if (ac.state === 'suspended') ac.resume();
     [660, 880].forEach((f, i) => {
       const o = ac.createOscillator(), g = ac.createGain();
       o.type = 'sine'; o.frequency.value = f;
@@ -2478,7 +2552,7 @@ function chime() {
 }
 $('#timerToggle').addEventListener('click', () => tRunning ? (stopTimer(), $('#timerMsg').textContent = 'Minuteur en pause.') : startTimer());
 $('#timerReset').addEventListener('click', () => {
-  stopTimer(); tLeft = T_TOTAL; paintTimer();
+  stopTimer(); tFin = null; tLeft = T_TOTAL; paintTimer();
   $('#timerMsg').classList.remove('done');
   $('#timerMsg').textContent = 'Minuteur remis à 15:00.';
 });
@@ -7223,6 +7297,7 @@ if (!loadState()) seed();
 REPERE = repereObserve();      // après loadState : PAST est alors rempli
 loadMyFoods();
 loadIgPerso();
+reprendreTimer();          // une pause hypo en cours doit se retrouver au demarrage
 migrateIgPerso();        // ramène les observations d'avant sur la nouvelle base d'IG
 loadProfile();
 renderFavorites();
@@ -7257,6 +7332,8 @@ if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   igKey, personalIg, collectResponses, mealResponse, matchShoppingItem, gluPath, unent, ingPair,
   migrateIgPerso, IG_ORIG,
   navStack, pushNav, closeNav, navTab, go, curTab: () => curTab, removeMeal,
+  startTimer, stopTimer, reprendreTimer, restant, T_TOTAL, HYPO_FIN,
+  timerEnCours: () => tRunning,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL, DB,

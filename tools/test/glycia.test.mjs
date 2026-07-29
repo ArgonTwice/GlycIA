@@ -11,6 +11,7 @@ const {
   igKey, personalIg, mealResponse, matchShoppingItem, gluPath, unent, ingPair,
   migrateIgPerso, IG_ORIG,
   navStack, pushNav, closeNav, navTab, go, curTab, removeMeal,
+  startTimer, stopTimer, reprendreTimer, restant, T_TOTAL, HYPO_FIN, timerEnCours,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, toGl, fmtDur, IGP, state, ALL, DB, matchFoods, setQuery
@@ -575,6 +576,61 @@ describe('gastroparesie — sources des mecanismes', () => {
   test('ceux qui n’en ont pas ne font pas semblant', () => {
     for (const id of ['gaz', 'chewing', 'quantite'])
       assert.ok(!DB.GP_MECA[id].s, `${id} ne devrait pas citer de source`);
+  });
+});
+
+/* L'ecran le plus critique de l'app. Le minuteur decrementait un compteur a
+   chaque battement de setInterval : sur un telephone, l'onglet en arriere-plan
+   est ralenti et l'ecran verrouille le fige tout a fait. Quinze minutes de
+   pause devenaient vingt ou trente sans que rien ne le signale. */
+describe('minuteur SOS hypo', () => {
+  const nettoyer = () => { stopTimer(); store.del(HYPO_FIN); };
+
+  test('la fin est un instant, pas un decompte', () => {
+    nettoyer();
+    startTimer();
+    const fin = +store.get(HYPO_FIN);
+    assert.ok(fin > Date.now() + (T_TOTAL - 5) * 1000, 'la fin est enregistree');
+    assert.ok(fin <= Date.now() + T_TOTAL * 1000);
+    nettoyer();
+  });
+
+  /* Le coeur du correctif : le temps restant se lit sur l'horloge, donc une
+     mise en veille de dix minutes en retire dix. */
+  test('une veille prolongee ne fausse pas le temps restant', () => {
+    nettoyer();
+    const vrai = Date.now;
+    startTimer();
+    try {
+      Date.now = () => vrai() + 10 * 60 * 1000;      // dix minutes plus tard
+      assert.ok(Math.abs(restant() - 5 * 60) <= 2, `restant ${restant()} s, attendu ~300`);
+    } finally { Date.now = vrai; }
+    nettoyer();
+  });
+
+  test('une pause en cours se retrouve au redemarrage', () => {
+    nettoyer();
+    store.set(HYPO_FIN, String(Date.now() + 7 * 60 * 1000));
+    reprendreTimer();
+    assert.ok(timerEnCours(), 'le minuteur doit repartir');
+    assert.ok(Math.abs(restant() - 7 * 60) <= 2, String(restant()));
+    nettoyer();
+  });
+
+  test('une pause deja finie ne ressuscite pas', () => {
+    nettoyer();
+    store.set(HYPO_FIN, String(Date.now() - 60 * 1000));
+    reprendreTimer();
+    assert.equal(timerEnCours(), false);
+    assert.equal(store.get(HYPO_FIN), null, 'et la trace est effacee');
+  });
+
+  test('arreter le minuteur n’en laisse pas la trace', () => {
+    nettoyer();
+    startTimer();
+    stopTimer();
+    assert.equal(store.get(HYPO_FIN), null);
+    assert.equal(timerEnCours(), false);
   });
 });
 
