@@ -13,7 +13,7 @@ const {
   navStack, pushNav, closeNav, navTab, go, curTab, removeMeal,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
-  computeTotals, toGl, fmtDur, IGP, state, ALL, DB
+  computeTotals, toGl, fmtDur, IGP, state, ALL, DB, matchFoods, setQuery
 } = api;
 
 /* Le Worker n'a pas de DOM : il s'importe directement. Seul `export default`
@@ -349,6 +349,52 @@ describe('ingredients des recettes de mode', () => {
       if (qte && !/^[\d½¼¾⅓⅔⅛]/.test(qte)) mauvaises.push(`${x} -> quantite « ${qte} »`);
     })));
     assert.deepEqual(mauvaises, []);
+  });
+});
+
+/* Chercher « riz » remontait quatre « Riz au lait » avant le riz : tout ce qui
+   commençait par la requête etait a egalite, et le tri alphabetique tranchait. */
+describe('pertinence de la recherche', () => {
+  const chercher = q => { setQuery(q); const r = matchFoods().map(f => f.n); setQuery(''); return r; };
+
+  test('le riz passe avant le riz au lait', () => {
+    const r = chercher('riz');
+    const lait = r.findIndex(n => /^Riz au lait/i.test(n));
+    const grain = r.findIndex(n => /^Riz (blanc|complet|basmati)/i.test(n));
+    assert.ok(grain >= 0 && lait >= 0, 'les deux doivent etre trouves');
+    assert.ok(grain < lait, `« ${r[grain]} » doit passer avant « ${r[lait]} »`);
+  });
+
+  /* Meme regularite du francais : une preposition annonce un autre aliment,
+     et le « s » du pluriel ne doit pas faire rater la regle. */
+  test('la pomme de terre passe apres les vraies pommes', () => {
+    const r = chercher('pomme');
+    const terre = r.findIndex(n => /^Pommes de terre/i.test(n));
+    const fruit = r.findIndex(n => /^Pomme (Golden|verte|rouge|au four|cuite)/i.test(n));
+    assert.equal(r[0], 'Pomme', 'le nom exact d’abord');
+    if (fruit >= 0 && terre >= 0) assert.ok(fruit < terre, `« ${r[fruit]} » avant « ${r[terre]} »`);
+  });
+
+  /* « Pain a burger » reste un pain : le « a » seul n'annonce pas un autre
+     aliment, contrairement a « au » et « aux ». */
+  test('une preposition d’usage ne declasse pas', () => {
+    const r = chercher('pain');
+    assert.ok(r.slice(0, 6).some(n => /^Pain à burger/i.test(n)), 'il reste parmi les premiers pains');
+  });
+
+  test('un nom exact arrive en tete', () => {
+    for (const q of ['pomme', 'miel', 'banane']) {
+      const r = chercher(q);
+      assert.equal(normalize(r[0]), q, `« ${q} » doit se trouver lui-meme en premier, or « ${r[0]} »`);
+    }
+  });
+
+  /* Le depart noyau / bases etendues ne se teste pas ici : le harnais ne
+     charge que db.json, ciqual.json et off-fr.json arrivent par le reseau.
+     Ce classement-la se verifie dans le navigateur. */
+
+  test('une frappe en cours de mot trouve encore', () => {
+    assert.ok(chercher('chocol').some(n => /chocolat/i.test(n)), 'la recherche doit suivre la frappe');
   });
 });
 

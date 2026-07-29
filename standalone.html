@@ -3736,17 +3736,52 @@ const CATS_ETENDUES = new Set([CIQ_CAT, USDA_CAT, OFFFR_CAT, 'Trouvés en ligne'
 const COLLATEUR = new Intl.Collator('fr');
 const parNom = (a, b) => COLLATEUR.compare(a.n, b.n);
 
+/* Longueur du nom seul, deduite de la cle de recherche sans renormaliser :
+   f.k vaut normalize(nom + ' ' + categorie), et il n'y a qu'une vingtaine de
+   categories, donc leur longueur normalisee se retient. */
+const CAT_LEN = new Map();
+function nomLen(f) {
+  let v = CAT_LEN.get(f.cat);
+  if (v === undefined) { v = normalize(f.cat).length; CAT_LEN.set(f.cat, v); }
+  return f.k.length - v - 1;
+}
+
+/* « Riz au lait » n'est pas du riz, « Pomme de terre » n'est pas une pomme.
+   En francais, une preposition juste apres le mot cherche annonce un autre
+   aliment, pas une precision sur celui-ci. Ces aliments restent affiches,
+   simplement apres ceux que la recherche visait vraiment. */
+const PREP = /^(?:aux?|a l[ae]?|del?|du|des|en|sauce|facon|nature)\b/;
+
+/* 0 le nom EST la requete · 1 le nom commence par elle · 2 il commence par
+   elle suivie d'une preposition · 3 elle est ailleurs, dans un autre mot du
+   nom ou dans la categorie. */
+function rangRecherche(f) {
+  if (!f.k.startsWith(fq)) return 3;
+  const nl = nomLen(f);
+  if (nl === fq.length) return 0;
+  /* Le « s » du pluriel est tolere : « pommes de terre » repond a « pomme ».
+     Le « a » seul n'entre pas dans PREP, lui — « pain a burger » reste un
+     pain, la ou « riz au lait » n'est plus du riz. */
+  const suite = /^s? (.*)$/.exec(f.k.slice(fq.length));
+  return suite && PREP.test(suite[1]) ? 2 : 1;
+}
+
 function matchFoods() {
   let out = ALL.filter(f => (!fCat || f.cat === fCat) && (!fq || f.k.includes(fq)));
   if (!fq && !fCat) out = out.filter(f => !CATS_ETENDUES.has(f.cat));
   if (state.gp && gpFilter) out = out.filter(f => gpFilter === 1 ? gpLevel(f) === 1 : gpLevel(f) < 3);
   if (fq) {
-    /* Le rang « commence par » se calcule une fois par aliment, pas a chaque
-       comparaison : l'ancienne version appelait normalize() deux fois par
-       comparaison, soit des centaines de milliers d'appels par frappe.
-       f.k est deja normalise et commence par le nom. */
-    for (const f of out) f._r = f.k.startsWith(fq) ? 0 : 1;
-    out.sort((a, b) => a._r - b._r || parNom(a, b));
+    /* Le rang se calcule une fois par aliment, pas a chaque comparaison :
+       une version passee appelait normalize() deux fois par comparaison, soit
+       des centaines de milliers d'appels par frappe. */
+    for (const f of out) f._r = rangRecherche(f);
+    /* A pertinence egale, le noyau passe devant les bases etendues : ses
+       aliments sont choisis et portionnes, les autres sont la longue traine.
+       Sans ca, chercher « riz » remontait quatre « riz au lait » de Ciqual
+       avant le riz lui-meme. */
+    out.sort((a, b) => a._r - b._r
+      || (CATS_ETENDUES.has(a.cat) ? 1 : 0) - (CATS_ETENDUES.has(b.cat) ? 1 : 0)
+      || parNom(a, b));
   }
   else if (fSort === 'carb') out.sort((a, b) => a.c - b.c || parNom(a, b));
   else if (fSort === 'kcal') out.sort((a, b) => a.kcal - b.kcal || parNom(a, b));
@@ -7051,7 +7086,8 @@ if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   navStack, pushNav, closeNav, navTab, go, curTab: () => curTab, removeMeal,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
-  computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL, DB
+  computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL, DB,
+  matchFoods, setQuery: q => { fq = normalize(q); }
 });
 
 })();
