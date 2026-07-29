@@ -3209,6 +3209,11 @@ const IG_TRACE = new Map(
 );
 const igCite = e => (IG_SRC && IG_SRC.src && IG_SRC.src[e.s]) || null;
 
+/* Valeur d'origine des aliments dont la table a corrigé l'IG. Elle ne sert
+   plus à l'affichage, mais la table d'IG personnelle en a besoin : voir
+   migrateIgPerso(). */
+const IG_ORIG = new Map();
+
 const ALL = [];
 const seenF = new Set();
 Object.entries(FOODDB).forEach(([cat, list]) => list.forEach(a => {
@@ -3220,6 +3225,7 @@ Object.entries(FOODDB).forEach(([cat, list]) => list.forEach(a => {
      a[7] : code Ciqual de l'aliment apparié. Sa présence dit que glucides et
              calories viennent de la table ; sinon ils viennent de l'étiquetage. */
   const tr = IG_TRACE.get(key) || null;
+  if (tr && a[2] != null && a[2] !== tr.ig) IG_ORIG.set(key, a[2]);
   ALL.push({ n:a[0], cat, c:a[1], ig: tr ? tr.ig : a[2], igr: tr, kcal:a[3], pw:a[4], pl:a[5],
              lip:a[6], ciq:a[7], bar:a[8], k:normalize(a[0] + ' ' + cat) });
 }));
@@ -4222,6 +4228,32 @@ function loadIgPerso() {
 }
 function saveIgPerso() {
   store.set(IGP_KEY, JSON.stringify({ seen: IGP.seen.slice(-300), obs: IGP.obs }));
+}
+
+/* ---------- Reprise des observations d'avant les IG tracés ----------
+   Une observation garde un rapport : écart mesuré ÷ charge glycémique
+   attendue. Cette charge dépend de l'IG en vigueur au moment du repas. Quand
+   la table tracée a corrigé l'IG d'un aliment — quinoa 35 → 53 — les rapports
+   déjà enregistrés se retrouvent sur une autre échelle que celle que
+   personalIg() suppose, et « IG chez toi » se met à mentir dans le sens de
+   la correction.
+
+   Rien n'est perdu : l'ancienne valeur est toujours dans db.json, la table ne
+   fait que la recouvrir. Le rapport se ramène donc exactement sur la nouvelle
+   base, sans jeter une seule observation. */
+const IGP_VER = 'glycia.igpersoVer';
+function migrateIgPerso() {
+  if (store.get(IGP_VER) === '2') return;
+  let corriges = 0;
+  IG_ORIG.forEach((ig0, key) => {
+    const arr = IGP.obs[key], e = IG_TRACE.get(key);
+    if (!arr || !arr.length || !e || !e.ig) return;
+    IGP.obs[key] = arr.map(v => round(v * ig0 / e.ig, 3));
+    corriges++;
+  });
+  store.set(IGP_VER, '2');
+  if (corriges) saveIgPerso();
+  return corriges;
 }
 
 /* Un repas ne compte qu'une fois, et seulement quand ses 3 h sont écoulées */
@@ -6772,6 +6804,7 @@ if (!loadState()) seed();
 REPERE = repereObserve();      // après loadState : PAST est alors rempli
 loadMyFoods();
 loadIgPerso();
+migrateIgPerso();        // ramène les observations d'avant sur la nouvelle base d'IG
 loadProfile();
 renderFavorites();
 setMascot('hello');
@@ -6803,6 +6836,7 @@ if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   normalize, clamp, round, esc, fmtQ, igClass, igLabel, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, collectResponses, mealResponse, matchShoppingItem, gluPath,
+  migrateIgPerso, IG_ORIG,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL

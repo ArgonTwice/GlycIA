@@ -9,6 +9,7 @@ const {
   normalize, clamp, round, fmtQ, igLabel, igClass, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, mealResponse, matchShoppingItem, gluPath,
+  migrateIgPerso, IG_ORIG,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, toGl, fmtDur, IGP, state, ALL
@@ -324,6 +325,48 @@ describe('IG tracés', () => {
     const sans = ALL.find(f => f.c > 0 && aIg(f.ig) && !f.igr);
     assert.ok(sans, 'la base doit garder des IG indicatifs');
     assert.equal(sans.igr, null);
+  });
+});
+
+/* Une observation garde « écart ÷ charge attendue », et la charge attendue
+   depend de l'IG en vigueur au moment du repas. Les 70 IG tracés ont change
+   cette base sous les pieds des observations deja enregistrees. */
+describe('reprise des observations apres correction d’un IG', () => {
+  test('la table sait quels IG ont ete corriges', () => {
+    assert.ok(IG_ORIG.size >= 10, `${IG_ORIG.size} IG corriges, attendu au moins 10`);
+    assert.equal(IG_ORIG.get('quinoa cuit'), 35, 'la valeur d’origine reste connue');
+    /* 16 des 70 valeurs tracées confirment la valeur héritée au point près.
+       Celles-la n'ont rien a reprendre. */
+    assert.equal(IG_ORIG.has('poire'), false, 'un IG inchange n’a rien a reprendre');
+  });
+
+  test('un rapport enregistre est ramene sur la nouvelle base', () => {
+    store.del('glycia.igpersoVer');
+    IGP.obs['quinoa cuit'] = [1.0, 0.5];
+    IGP.obs['poire'] = [0.8];
+    migrateIgPerso();
+    /* Quinoa : 35 → 53. Le rapport avait ete calcule contre une charge plus
+       petite, il doit donc retrecir dans le meme rapport. */
+    assert.deepEqual(IGP.obs['quinoa cuit'], [round(35 / 53, 3), round(0.5 * 35 / 53, 3)]);
+    assert.deepEqual(IGP.obs['poire'], [0.8], 'un aliment non corrige ne bouge pas');
+    delete IGP.obs['quinoa cuit']; delete IGP.obs['poire'];
+  });
+
+  test('la reprise ne se rejoue pas au demarrage suivant', () => {
+    store.del('glycia.igpersoVer');
+    IGP.obs['quinoa cuit'] = [1.0];
+    migrateIgPerso();
+    const apres = IGP.obs['quinoa cuit'].slice();
+    migrateIgPerso();
+    assert.deepEqual(IGP.obs['quinoa cuit'], apres, 'deux passages diviseraient deux fois');
+    delete IGP.obs['quinoa cuit'];
+  });
+
+  test('sans observation, la reprise ne fabrique rien', () => {
+    store.del('glycia.igpersoVer');
+    const avant = Object.keys(IGP.obs).length;
+    migrateIgPerso();
+    assert.equal(Object.keys(IGP.obs).length, avant);
   });
 });
 
