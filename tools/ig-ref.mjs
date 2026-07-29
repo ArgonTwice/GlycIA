@@ -96,12 +96,18 @@ const SRC = {
    qu'un chiffre présenté comme mesuré et que la source ne soutient pas.
 
    Retirés à ce titre :
-     patate douce      quatre entrées de 44 à 77
      galette de riz    61 à 91 selon la variété de riz
      vermicelles riz   40 à 61 selon fraîche ou sèche
-     purée instantanée la seule entrée trouvée est mangée avec fromage et beurre
      p. de terre vapeur rapprochée de « boiled » alors qu'elle est à la vapeur ;
                        les entrées vapeur vont de 62 à 72, sans moyenne
+
+   DEUX RETRAITS ANNULÉS, et c'est instructif. La patate douce et la purée
+   instantanée avaient été écartées faute de ligne de moyenne — elles en ont
+   une, que mes premières recherches n'avaient pas atteinte : 70 pour la patate
+   douce (qui portait 63 à tort), 87 pour la purée. Appliquer une règle sur une
+   lecture incomplète produit exactement l'erreur que la règle voulait éviter.
+   Chercher la moyenne d'un groupe demande de balayer tout le document, pas la
+   fenêtre qui suit le nom.
 
    Absents dès le départ, pour la même raison : le lait, le chocolat noir, la
    banane très mûre et la courge. */
@@ -111,11 +117,11 @@ const REF = [
   ['Pain complet',             74, 'at08', 'Whole wheat / whole meal bread', 'x'],
   ['Pain de mie complet',      74, 'at08', 'Whole wheat / whole meal bread', 'x'],
   ['Pain de seigle',           50, 'at08', 'Rye bread, 50% rye + 50% wheat flour', 'x'],
-  ['Pain aux céréales',        53, 'at08', 'Multigrain bread'],
+  ['Pain aux céréales',        44, 'at08', 'Bürgen Mixed Grain bread (moyenne)', 'x'],
   ['Pain pita',                68, 'at08', 'Pita bread, white, mini (UK)', 'x'],
   ['Corn flakes',              81, 'at08', 'Corn flakes', 'x'],
-  ['Flocons d\'avoine',        55, 'at08', 'Porridge, rolled oats'],
-  ['Avoine cuite',             55, 'at08', 'Porridge, rolled oats'],
+  ['Flocons d\'avoine',        55, 'at08', 'Porridge (moyenne)', 'x'],
+  ['Avoine cuite',             55, 'at08', 'Porridge (moyenne)', 'x'],
   ['Muesli sans sucre',        57, 'at08', 'Muesli'],
   ['Pop-corn nature',          65, 'at08', 'Popcorn', 'x'],
 
@@ -131,6 +137,8 @@ const REF = [
   ['Quinoa cuit',              53, 'at08', 'Quinoa', 'x'],
   ['Boulgour cuit',            48, 'at08', 'Bulgur'],
   ['Orge perlé',               28, 'at08', 'Barley, pearled / pot, boiled', 'x'],
+  ['Purée de pommes de terre', 87, 'at08', 'Instant mashed potato (moyenne)', 'x'],
+  ['Patate douce cuite',       70, 'at08', 'Sweet potato, cooked (moyenne)', 'x'],
   ['Frites maison',            63, 'at08', 'French fries'],
   ['Frites fast-food',         63, 'at08', 'French fries'],
   ['Maïs doux en boîte',       52, 'at08', 'Sweet corn', 'x'],
@@ -140,7 +148,7 @@ const REF = [
   ['Lentilles vertes cuites',  32, 'at08', 'Lentils'],
   ['Lentilles corail cuites',  26, 'at08', 'Red lentils', 'x'],
   ['Pois chiches cuits',       28, 'at08', 'Chickpeas', 'x'],
-  ['Haricots rouges cuits',    24, 'at08', 'Kidney beans'],
+  ['Haricots rouges cuits',    22, 'at08', 'Kidney beans (moyenne)', 'x'],
   ['Haricots blancs cuits',    31, 'at08', 'Haricot / Navy beans, boiled (Canada)', 'x'],
   ['Pois cassés',              25, 'at08', 'Split peas', 'x'],
   ['Soja jaune cuit',          16, 'at08', 'Soya beans'],
@@ -181,9 +189,9 @@ const REF = [
   // Laitages et sucré
   ['Yaourt aux fruits sucré',  41, 'at08', 'Yoghurt, fruit, sweetened'],
   ['Glace vanille',            51, 'at08', 'Ice cream, regular'],
-  ['Chocolat au lait',         43, 'at08', 'Milk chocolate'],
-  ['Sucre blanc',              65, 'at08', 'Sucrose'],
-  ['Miel',                     61, 'at08', 'Honey']
+  ['Chocolat au lait',         43, 'at08', 'Chocolate, milk, plain (moyenne)', 'x'],
+  ['Sucre blanc',              65, 'at08', 'Sucrose (moyenne de six études)', 'x'],
+  ['Miel',                     61, 'at08', 'Honey (moyenne de dix-sept miels)', 'x']
 ];
 
 const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '')

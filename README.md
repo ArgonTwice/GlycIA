@@ -120,7 +120,7 @@ Le workflow `release.yml` crée la release et y attache `standalone.html` ainsi 
 | Donnée | Source | Version |
 |---|---|---|
 | Glucides et calories aux 100 g | [Table Ciqual](https://ciqual.anses.fr/), ANSES — [doi:10.57745/RDMHWY](https://entrepot.recherche.data.gouv.fr/dataset.xhtml?persistentId=doi:10.57745/RDMHWY) | 2025 (3 484 aliments) |
-| Index glycémique, 65 aliments courants | [Atkinson, Foster-Powell & Brand-Miller](https://doi.org/10.2337/dc08-1239), *International Tables of Glycemic Index and Glycemic Load Values*, Diabetes Care 31(12):2281-2283 | 2008 |
+| Index glycémique, 67 aliments courants | [Atkinson, Foster-Powell & Brand-Miller](https://doi.org/10.2337/dc08-1239), *International Tables of Glycemic Index and Glycemic Load Values*, Diabetes Care 31(12):2281-2283 | 2008 |
 | Index glycémique, reste du noyau | **Indicatif, non tracé — voir ci-dessous** | — |
 | Seuils IG (bas ≤ 55, moyen 56–69, élevé ≥ 70) | Convention internationale, [Atkinson & Brand-Miller 2021](https://ajcn.nutrition.org/article/S0002-9165(22)00494-4/fulltext) | 2021 |
 | Repères fibres (25 g/j) et fruits-légumes (400 g/j) | [OMS, apports en glucides](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates) | 2023 |
@@ -182,15 +182,17 @@ node tools/ig-ref.mjs --apply   # écrit la table IG_SRC dans db.json
 
 **Ce que la citation garantit, et ce qu'elle ne garantit pas.** Elle dit d'où la valeur est censée venir. Elle ne dit pas qu'elle a été recopiée sans faute — et la distinction n'est pas theorique.
 
-**37 des 65 valeurs sont recoupées** contre la table A1 de l'article elle-même. La table liste chaque étude séparément, puis une ligne « mean of N studies » quand il y en a plusieurs : c'est cette moyenne qui fait foi, une entrée isolée ne valant que pour son échantillon. Le pain blanc sort ainsi à 75 sur seize études, quand les entrées individuelles vont de 59 à 89.
+**46 des 67 valeurs sont recoupées** contre la table A1 de l'article elle-même. La table liste chaque étude séparément, puis une ligne « mean of N studies » quand il y en a plusieurs : c'est cette moyenne qui fait foi, une entrée isolée ne valant que pour son échantillon. Le pain blanc sort ainsi à 75 sur seize études, quand les entrées individuelles vont de 59 à 89.
 
-**Trois corrections et cinq retraits en sont sortis.** Carotte crue 16 → 35, pain pita 57 → 68, riz gluant 86 → 98 : à chaque fois une valeur reprise d'une table antérieure ou de mémoire, que la table 2008 contredit.
+**Six corrections et trois retraits en sont sortis.** Carotte crue 16 → 35, pain pita 57 → 68, riz gluant 86 → 98, patate douce 63 → 70, pain aux céréales 53 → 44, haricots rouges 24 → 22 : à chaque fois une valeur reprise d'une table antérieure ou de mémoire, que la table 2008 contredit.
+
+**Deux retraits ont dû être annulés**, et c'est la leçon la plus utile de ce travail. La patate douce et la purée instantanée avaient été écartées faute de ligne de moyenne — elles en ont une, que les premières recherches n'avaient pas atteinte. Appliquer une règle sur une lecture incomplète produit exactement l'erreur que la règle voulait éviter : chercher la moyenne d'un groupe demande de balayer tout le document, pas la fenêtre qui suit le nom.
 
 Les retraits suivent une règle écrite, pour ne pas décider au cas par cas : **un aliment quitte la table des IG tracés quand ses entrées s'écartent de plus de 20 points sans ligne de moyenne pour les résumer, ou quand le rapprochement ne tient pas.** La patate douce va de 44 à 77 ; la galette de riz de 61 à 91 selon la variété ; la seule entrée de purée instantanée trouvée est mangée avec fromage et beurre. Ces aliments retrouvent leur IG indicatif — ce qui vaut mieux qu'un chiffre présenté comme mesuré et que la source ne soutient pas.
 
 Un piège à connaître avant d'automatiser ce travail : la ligne de moyenne ne se rattache pas au groupe le plus proche. Chercher « Pita bread, white » puis prendre la première « mean of N studies » qui suit renvoie 44 — qui est la moyenne d'All-Bran, le groupe suivant. Il faut lire la fenêtre.
 
-Les 28 restantes sont citées mais pas reconfrontées. Six d'entre elles ont une entrée de table qui ne concorde pas — pomme, orange, ananas, banane, raisin, lentilles vertes — et deux n'ont pas été localisées du tout. Toutes sont listées en tête de `tools/ig-ref.mjs`, à trancher plutôt qu'à corriger sur une lecture partielle.
+Les 21 restantes sont citées mais pas reconfrontées. Six d'entre elles ont une entrée de table qui ne concorde pas — pomme, orange, ananas, banane, raisin, lentilles vertes — et deux n'ont pas été localisées du tout. Toutes sont listées en tête de `tools/ig-ref.mjs`, à trancher plutôt qu'à corriger sur une lecture partielle.
 
 ```bash
 node tools/ig-verifier.mjs --extraire tableA1.pdf > a1.txt   # la table n'est pas au dépôt : elle n'est pas redistribuable
