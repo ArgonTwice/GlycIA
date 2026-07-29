@@ -72,6 +72,15 @@ const SRC = {
      Ananas     59  — entrée trouvée : cru (Australie) 66
      Banane     51  — entrées trouvées : 47 (Australie), 62 (Canada), 70 (Afr. du Sud)
      Lentilles vertes 32 — entrée trouvée : vertes sèches bouillies (Australie) 37
+     Raisin     46  — entrée trouvée : noir, Waltham Cross (Australie) 59
+
+   À LOCALISER — le boulgour et la betterave n'ont pas été retrouvés dans le
+   texte extrait. Ce n'est pas une preuve d'absence : l'extraction perd des
+   flux. Mais tant qu'on ne les a pas lus, citer la table 2008 pour eux
+   repose sur la mémoire, pas sur la source.
+
+   Pour reprendre ce travail : `node tools/ig-verifier.mjs`, qui affiche la
+   fenêtre de table de chaque valeur restante et rappelle les pièges.
 
    `node tools/ig-ref.mjs` donne le compte. Le reste est un chantier ouvert,
    pas un état final. */
@@ -127,7 +136,7 @@ const REF = [
   ['Haricots blancs cuits',    31, 'at08', 'Haricot / Navy beans, boiled (Canada)', 'x'],
   ['Pois cassés',              25, 'at08', 'Split peas', 'x'],
   ['Soja jaune cuit',          16, 'at08', 'Soya beans'],
-  ['Petits pois',              51, 'at08', 'Green peas'],
+  ['Petits pois',              51, 'at08', 'Pea, frozen, boiled (Canada)', 'x'],
   ['Houmous',                   6, 'at08', 'Hummus', 'x'],
 
   // Fruits
@@ -159,7 +168,7 @@ const REF = [
   ['Jus de pomme',             41, 'at08', 'Apple juice, unsweetened'],
   ['Jus d\'ananas',            46, 'at08', 'Pineapple juice, unsweetened'],
   ['Boisson au soja',          34, 'at08', 'Soy milk'],
-  ['Soda à l\'orange',         68, 'at08', 'Fanta, orange soft drink'],
+  ['Soda à l\'orange',         68, 'at08', 'Fanta, orange soft drink (Australia)', 'x'],
 
   // Laitages et sucré
   ['Yaourt aux fruits sucré',  41, 'at08', 'Yoghurt, fruit, sweetened'],

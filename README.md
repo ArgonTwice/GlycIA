@@ -182,13 +182,20 @@ node tools/ig-ref.mjs --apply   # écrit la table IG_SRC dans db.json
 
 **Ce que la citation garantit, et ce qu'elle ne garantit pas.** Elle dit d'où la valeur est censée venir. Elle ne dit pas qu'elle a été recopiée sans faute — et la distinction n'est pas theorique.
 
-**34 des 69 valeurs sont recoupées** contre la table A1 de l'article elle-même. La table liste chaque étude séparément, puis une ligne « mean of N studies » quand il y en a plusieurs : c'est cette moyenne qui fait foi, une entrée isolée ne valant que pour son échantillon. Le pain blanc sort ainsi à 75 sur seize études, quand les entrées individuelles vont de 59 à 89.
+**36 des 69 valeurs sont recoupées** contre la table A1 de l'article elle-même. La table liste chaque étude séparément, puis une ligne « mean of N studies » quand il y en a plusieurs : c'est cette moyenne qui fait foi, une entrée isolée ne valant que pour son échantillon. Le pain blanc sort ainsi à 75 sur seize études, quand les entrées individuelles vont de 59 à 89.
 
 **Deux corrections et un retrait en sont sortis.** La carotte crue passe de 16 à 35 et le pain pita de 57 à 68 — deux valeurs d'une table antérieure reprises sans vérification. La patate douce, elle, quitte la table des IG tracés : ses quatre entrées vont de 44 à 77 sans ligne de moyenne, et c'est précisément le cas que ce travail s'était donné pour règle d'écarter.
 
 Un piège à connaître avant d'automatiser ce travail : la ligne de moyenne ne se rattache pas au groupe le plus proche. Chercher « Pita bread, white » puis prendre la première « mean of N studies » qui suit renvoie 44 — qui est la moyenne d'All-Bran, le groupe suivant. Il faut lire la fenêtre.
 
-Les 35 restantes sont citées mais pas reconfrontées. Quatre d'entre elles ont une entrée de table qui ne concorde pas — pomme, orange, ananas, banane : elles sont listées en tête de `tools/ig-ref.mjs`, à trancher plutôt qu'à corriger sur une lecture partielle. `node tools/audit-sources.mjs` donne le compte à chaque exécution. C'est un chantier ouvert, écrit comme tel plutôt que passé sous silence.
+Les 33 restantes sont citées mais pas reconfrontées. Six d'entre elles ont une entrée de table qui ne concorde pas — pomme, orange, ananas, banane, raisin, lentilles vertes — et deux n'ont pas été localisées du tout. Toutes sont listées en tête de `tools/ig-ref.mjs`, à trancher plutôt qu'à corriger sur une lecture partielle.
+
+```bash
+node tools/ig-verifier.mjs --extraire tableA1.pdf > a1.txt   # la table n'est pas au dépôt : elle n'est pas redistribuable
+node tools/ig-verifier.mjs a1.txt                            # fenêtres des valeurs restantes
+```
+
+L'outil rappelle les deux pièges qui coûtent cher : la colonne de gauche est l'IG sur base glucose, celle de droite sur base pain — les confondre fait passer une patate douce de 44 à 63 — et la ligne « mean of N studies » ne se rattache pas au groupe le plus proche dans le texte extrait. `node tools/audit-sources.mjs` donne le compte à chaque exécution. C'est un chantier ouvert, écrit comme tel plutôt que passé sous silence.
 
 **L'IG indicatif** du reste du noyau est resté tel quel, et l'audit dit pourquoi s'en méfier : **82 % de ces valeurs sont des multiples de 5**, les plus fréquentes étant 60, 55, 50, 65, 45. Des mesures de laboratoire ne se distribuent pas ainsi. Elles restent vraisemblables, elles ne sont pas traçables — le `~` et le mot « indicatif » sont là pour ça.
 
