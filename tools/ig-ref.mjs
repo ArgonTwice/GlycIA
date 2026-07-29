@@ -73,6 +73,8 @@ const SRC = {
      Banane     51  — entrées trouvées : 47 (Australie), 62 (Canada), 70 (Afr. du Sud)
      Lentilles vertes 32 — entrée trouvée : vertes sèches bouillies (Australie) 37
      Raisin     46  — entrée trouvée : noir, Waltham Cross (Australie) 59
+     Pâtes complètes 48 — entrées : 42, 45, 58 (écart 16, sous le seuil de retrait)
+     Frites     63  — entrées : 54, 64, 70 (écart 16, moyenne implicite 63)
 
    À LOCALISER — le boulgour et la betterave n'ont pas été retrouvés dans le
    texte extrait. Ce n'est pas une preuve d'absence : l'extraction perd des
@@ -87,12 +89,22 @@ const SRC = {
 
 /* [nom dans GlycIA, IG, source, aliment mesuré tel qu'il est nommé dans la table, recoupé ?]
    Le quatrième champ est le rapprochement lui-même : c'est lui qu'on vérifie.
-   Volontairement absents : le lait, le chocolat noir, la banane très mûre, la
-   courge et la patate douce — leurs valeurs publiées divergent trop d'une étude
-   à l'autre pour qu'une moyenne veuille dire quelque chose. La patate douce a
-   rejoint cette liste après vérification : la table 2008 en donne quatre
-   entrées, de 44 à 77, sans ligne de moyenne. Mieux vaut un IG indicatif
-   annoncé comme tel qu'un chiffre tracé qui ne tient pas. */
+   RÈGLE DE RETRAIT, pour ne pas décider au cas par cas : un aliment quitte
+   cette table quand ses entrées s'écartent de plus de 20 points sans ligne de
+   moyenne pour les résumer, ou quand le rapprochement lui-même ne tient pas.
+   Il retrouve alors son IG indicatif, annoncé comme tel — ce qui vaut mieux
+   qu'un chiffre présenté comme mesuré et que la source ne soutient pas.
+
+   Retirés à ce titre :
+     patate douce      quatre entrées de 44 à 77
+     galette de riz    61 à 91 selon la variété de riz
+     vermicelles riz   40 à 61 selon fraîche ou sèche
+     purée instantanée la seule entrée trouvée est mangée avec fromage et beurre
+     p. de terre vapeur rapprochée de « boiled » alors qu'elle est à la vapeur ;
+                       les entrées vapeur vont de 62 à 72, sans moyenne
+
+   Absents dès le départ, pour la même raison : le lait, le chocolat noir, la
+   banane très mûre et la courge. */
 const REF = [
   // Pains et petit-déjeuner
   ['Pain de mie',              75, 'at08', 'White wheat flour bread', 'x'],
@@ -105,24 +117,20 @@ const REF = [
   ['Flocons d\'avoine',        55, 'at08', 'Porridge, rolled oats'],
   ['Avoine cuite',             55, 'at08', 'Porridge, rolled oats'],
   ['Muesli sans sucre',        57, 'at08', 'Muesli'],
-  ['Galette de riz soufflé',   87, 'at08', 'Rice cakes, white'],
   ['Pop-corn nature',          65, 'at08', 'Popcorn', 'x'],
 
   // Féculents
   ['Riz blanc cuit',           73, 'at08', 'White rice, boiled', 'x'],
   ['Riz complet cuit',         68, 'at08', 'Brown rice, boiled', 'x'],
   ['Riz basmati cuit',         57, 'at08', 'Basmati rice, boiled', 'x'],
-  ['Riz gluant',               86, 'at08', 'Glutinous rice'],
+  ['Riz gluant',               98, 'at08', 'Glutinous rice, white, cooked in rice cooker (Thailand)', 'x'],
   ['Pâtes cuites al dente',    49, 'at08', 'Spaghetti, white, boiled 10-15 min', 'x'],
   ['Spaghetti cuits',          49, 'at08', 'Spaghetti, white, boiled 10-15 min', 'x'],
   ['Pâtes complètes',          48, 'at08', 'Spaghetti, wholemeal, boiled'],
-  ['Vermicelles de riz',       53, 'at08', 'Rice noodles'],
   ['Semoule de couscous',      65, 'at08', 'Couscous, rehydrated with hot water', 'x'],
   ['Quinoa cuit',              53, 'at08', 'Quinoa', 'x'],
   ['Boulgour cuit',            48, 'at08', 'Bulgur'],
   ['Orge perlé',               28, 'at08', 'Barley, pearled / pot, boiled', 'x'],
-  ['Pommes de terre vapeur',   78, 'at08', 'Potato, boiled'],
-  ['Purée de pommes de terre', 87, 'at08', 'Instant mashed potato'],
   ['Frites maison',            63, 'at08', 'French fries'],
   ['Frites fast-food',         63, 'at08', 'French fries'],
   ['Maïs doux en boîte',       52, 'at08', 'Sweet corn', 'x'],
