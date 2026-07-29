@@ -137,6 +137,23 @@ pas de RGPD à gérer.
 
 ---
 
+---
+
+## 12. Étendre les IG tracés
+
+70 aliments courants portent un IG rattaché à sa publication (`tools/ig-ref.mjs`, table
+`IG_SRC` de `db.json`). Le reste du noyau garde un IG indicatif, arrondi, non traçable.
+
+Chaque valeur ajoutée demande la même chose : le nom de l'aliment tel qu'il est nommé dans
+la publication, la publication elle-même, et un rapprochement qu'on puisse contester. Les
+aliments dont les valeurs publiées divergent trop d'une étude à l'autre — le lait, le
+chocolat noir, la banane très mûre, la courge — restent volontairement dehors : mieux vaut
+un IG indicatif annoncé comme tel qu'un chiffre tracé qui ne tient pas.
+
+`node tools/ig-ref.mjs` liste la couverture et les écarts avec les valeurs héritées.
+
+---
+
 ## À ne pas faire
 
 **Calcul de dose d'insuline.** Dispositif médical de classe IIb, marquage CE obligatoire,

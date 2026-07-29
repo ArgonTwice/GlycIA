@@ -10,6 +10,7 @@ const {
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, mealResponse, matchShoppingItem,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
+  IG_TRACE, igCite,
   computeTotals, toGl, fmtDur, IGP, state, ALL
 } = api;
 
@@ -222,6 +223,47 @@ describe('réponse glycémique', () => {
   test('sans capteur, pas de courbe', () => {
     state.glucose = [];
     assert.equal(mealResponse({ time: new Date(), carbs: 60, ig: 60 }), null);
+  });
+});
+
+describe('IG tracés', () => {
+  test('la table est branchée et non vide', () => {
+    assert.ok(IG_TRACE.size >= 50, `${IG_TRACE.size} valeurs tracées, attendu au moins 50`);
+  });
+
+  /* Une valeur tracée sans citation vaudrait exactement autant qu'un chiffre
+     inventé : c'est la citation qui fait toute la différence. */
+  test('chaque valeur tracée porte une citation complète', () => {
+    for (const [cle, e] of IG_TRACE) {
+      assert.ok(e.ig > 0 && e.ig <= 110, `${cle} : IG ${e.ig} hors bornes`);
+      assert.ok(e.mesure, `${cle} : l'aliment mesuré n'est pas nommé`);
+      const c = igCite(e);
+      assert.ok(c, `${cle} : source « ${e.s} » introuvable`);
+      for (const champ of ['a', 't', 'j', 'doi']) {
+        assert.ok(c[champ], `${cle} : citation sans ${champ}`);
+      }
+    }
+  });
+
+  /* Une clé qui ne correspond à aucun aliment est du travail perdu et
+     silencieux : la faute de frappe ne se verrait nulle part dans l'app. */
+  test('aucune clé ne pointe dans le vide', () => {
+    const noms = new Set(ALL.map(f => normalize(f.n)));
+    const orphelines = [...IG_TRACE.keys()].filter(k => !noms.has(k));
+    assert.deepEqual(orphelines, [], 'clés sans aliment correspondant');
+  });
+
+  test('la valeur publiée remplace bien celle saisie à la main', () => {
+    const quinoa = ALL.find(f => normalize(f.n) === 'quinoa cuit');
+    assert.ok(quinoa, 'le quinoa doit être dans la base');
+    assert.equal(quinoa.ig, 53, 'la valeur héritée était 35, sans source');
+    assert.ok(quinoa.igr, 'et la fiche doit pouvoir citer sa source');
+  });
+
+  test('un aliment hors table garde son IG indicatif, sans citation', () => {
+    const sans = ALL.find(f => f.c > 0 && aIg(f.ig) && !f.igr);
+    assert.ok(sans, 'la base doit garder des IG indicatifs');
+    assert.equal(sans.igr, null);
   });
 });
 

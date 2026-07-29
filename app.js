@@ -7,7 +7,7 @@
 
 /* Données séparées : chargées en parallèle du script, mises en cache par le SW */
 const DB = await (await fetch(new URL('./db.json', import.meta.url))).json();
-const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT, GE_PHASES, GE_TIPS, GE_FOODS, GE_RECIPES, GE_ALERT, SPORT_PHASES, SPORT_TIPS, SPORT_FOODS, SPORT_RECIPES, SPORT_ALERT } = DB;
+const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, IG_SRC, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT, GE_PHASES, GE_TIPS, GE_FOODS, GE_RECIPES, GE_ALERT, SPORT_PHASES, SPORT_TIPS, SPORT_FOODS, SPORT_RECIPES, SPORT_ALERT } = DB;
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1356,12 +1356,17 @@ paintCake();
    complétée par l'étiquetage fabricant pour les produits de marque et les
    plats de chaîne, absents de Ciqual. Les valeurs décrivent l'aliment PRÊT À
    MANGER, pas cru : c'est ce qu'on a dans l'assiette.
-   Index glycémique : AUCUNE SOURCE VÉRIFIÉE. Ciqual n'en publie pas, et les
-   valeurs presentes ici n'ont jamais ete confrontees a une table de reference.
-   82 % d'entre elles sont des multiples de 5 : ce sont des arrondis saisis a
-   la main, vraisemblables mais non tracables. Voir la section Donnees du
-   README avant de leur faire confiance.
+   Index glycémique : TROIS RÉGIMES, et la fiche dit toujours lequel.
+   - 70 aliments courants portent un IG TRACÉ : la valeur vient d'une
+     publication citée, avec le nom de l'aliment réellement mesuré. Table
+     IG_SRC de db.json, tenue par tools/ig-ref.mjs.
+   - Le reste du noyau porte un IG INDICATIF, hérité et jamais confronté à une
+     table de référence. 82 % de ces valeurs sont des multiples de 5 : ce sont
+     des arrondis saisis à la main, vraisemblables mais non traçables.
+   - Les bases étendues (Ciqual, Open Food Facts, USDA) n'ont pas d'IG du
+     tout : aucune ne le publie, la fiche affiche un tiret.
    Confrontation à Ciqual : node tools/audit-ciqual.mjs
+   Couverture des IG tracés : node tools/ig-ref.mjs
    ========================================================================== */
 
 /* Extension de la bible — fusionnée dans FOODDB */
@@ -1393,6 +1398,20 @@ function ghIssueUrl(f) {
   return `https://github.com/ArgonTwice/GlycIA/issues/new?${params.toString()}`;
 }
 
+/* ---------- IG tracés ----------
+   La valeur publiée l'emporte sur celle saisie à la main : entre un chiffre
+   qu'on peut aller vérifier et un arrondi dont personne ne sait d'où il sort,
+   le choix n'est pas difficile. L'écart est parfois large — quinoa 35 → 53,
+   riz complet 50 → 68 — et il va presque toujours dans le même sens : les
+   valeurs héritées flattaient les aliments réputés « à IG bas ».
+
+   La superposition se fait ici, au chargement, et db.json garde ses valeurs
+   d'origine : la table de référence reste retirable d'une ligne. */
+const IG_TRACE = new Map(
+  ((IG_SRC && IG_SRC.v) || []).map(([n, ig, s, mesure]) => [normalize(n), { ig, s, mesure }])
+);
+const igCite = e => (IG_SRC && IG_SRC.src && IG_SRC.src[e.s]) || null;
+
 const ALL = [];
 const seenF = new Set();
 Object.entries(FOODDB).forEach(([cat, list]) => list.forEach(a => {
@@ -1403,8 +1422,9 @@ Object.entries(FOODDB).forEach(([cat, list]) => list.forEach(a => {
              Absent = valeur inconnue, gpFat() retombe sur son estimation.
      a[7] : code Ciqual de l'aliment apparié. Sa présence dit que glucides et
              calories viennent de la table ; sinon ils viennent de l'étiquetage. */
-  ALL.push({ n:a[0], cat, c:a[1], ig:a[2], kcal:a[3], pw:a[4], pl:a[5], lip:a[6], ciq:a[7], bar:a[8],
-             k:normalize(a[0] + ' ' + cat) });
+  const tr = IG_TRACE.get(key) || null;
+  ALL.push({ n:a[0], cat, c:a[1], ig: tr ? tr.ig : a[2], igr: tr, kcal:a[3], pw:a[4], pl:a[5],
+             lip:a[6], ciq:a[7], bar:a[8], k:normalize(a[0] + ' ' + cat) });
 }));
 
 const CATS = Object.keys(FOODDB);
@@ -1787,8 +1807,8 @@ function renderFoods(onlineMsg) {
       <div class="fdet">
         <div class="fgrid">
           <div><b style="color:var(--peach-deep)">${carbs}</b><span>Glucides g</span></div>
-          <div><b style="color:${igCol(f.ig)}">${aIg(f.ig) ? '~' + f.ig : '—'}</b><span>${aIg(f.ig) ? 'IG indicatif' : 'IG inconnu'}</span></div>
-          <div><b style="color:${cg === null ? 'var(--ink-faint)' : 'var(--violet-deep)'}">${cg === null ? '—' : cg}</b><span>Charge indicative</span></div>
+          <div><b style="color:${igCol(f.ig)}">${aIg(f.ig) ? (f.igr ? f.ig : '~' + f.ig) : '—'}</b><span>${aIg(f.ig) ? (f.igr ? 'IG mesuré' : 'IG indicatif') : 'IG inconnu'}</span></div>
+          <div><b style="color:${cg === null ? 'var(--ink-faint)' : 'var(--violet-deep)'}">${cg === null ? '—' : cg}</b><span>Charge ${f.igr ? 'glycémique' : 'indicative'}</span></div>
         </div>
         ${state.gp ? `<div class="gp-why ${GP_MARK[gpLevel(f)][0]}">
           <b>${GP_MARK[gpLevel(f)][1]} ${GP_MARK[gpLevel(f)][2]} avec un estomac lent</b>
@@ -1801,7 +1821,13 @@ function renderFoods(onlineMsg) {
           : f.ciq ? `📗 Table Ciqual 2025 de l’ANSES <a href="https://ciqual.anses.fr/#/aliments/${f.ciq}" target="_blank" rel="noopener">fiche ${f.ciq}</a>`
           : f.bar ? `🏷️ Étiquetage <a href="https://world.openfoodfacts.org/product/${f.bar}" target="_blank" rel="noopener">code ${f.bar}</a>`
           : '📊 Valeur générique — scanne le paquet pour celle de ton produit'}
-          &nbsp;·&nbsp; IG indicatif</div>
+          &nbsp;·&nbsp; ${f.igr ? 'IG mesuré' : 'IG indicatif'}</div>
+        ${(() => {
+          const c = f.igr && igCite(f.igr);
+          return c ? `<div class="fsrc">🔬 IG mesuré sur « ${esc(f.igr.mesure)} » —
+            ${esc(c.a)}, <i>${esc(c.t)}</i>, ${esc(c.j)},
+            <a href="https://doi.org/${esc(c.doi)}" target="_blank" rel="noopener">doi:${esc(c.doi)}</a></div>` : '';
+        })()}
         ${(() => { const p = personalIg(f.n, f.ig); return p
           ? `<div class="fmeta" style="color:var(--violet-deep)"><b>IG chez toi : ~${p.ig}</b> (base : ~${f.ig}) — observé sur ${p.n} repas</div>`
           : ''; })()}
@@ -4315,11 +4341,15 @@ function renderSettings() {
         <p><b>Glucides</b> — mesurés, et traçables quand la fiche donne une source :
         Ciqual pour les aliments génériques, l'étiquette du paquet pour les produits scannés.
         Sinon c'est une valeur générique de catégorie, utile pour suivre, pas au gramme près.</p>
-        <p><b>Index glycémique</b> — indicatif sur les aliments courants, et <b>absent</b> sur
-        les produits des bases étendues : personne ne publie l'IG d'un yaourt de marque, et
-        l'app préfère un tiret à un chiffre inventé. Il n'existe pas de base d'IG libre faisant
-        autorité, et l'IG varie de toute façon d'un laboratoire à l'autre, avec la maturité,
-        la cuisson et la personne. Bon pour comparer deux aliments, pas pour calculer.</p>
+        <p><b>Index glycémique</b> — trois cas, et la fiche dit toujours lequel.
+        <b>Mesuré</b> sur ${IG_TRACE.size} aliments courants : la fiche cite alors la
+        publication et le nom exact de l'aliment testé, pour que tu puisses aller vérifier.
+        <b>Indicatif</b> sur le reste du noyau : des valeurs héritées, arrondies, jamais
+        confrontées à une table — vraisemblables, pas traçables. <b>Absent</b> sur les
+        bases étendues : personne ne publie l'IG d'un yaourt de marque, et l'app préfère
+        un tiret à un chiffre inventé. Dans tous les cas l'IG varie d'un laboratoire à
+        l'autre, avec la maturité, la cuisson et la personne : bon pour comparer deux
+        aliments, pas pour calculer.</p>
       </div>
       <div class="eyebrow" style="margin:16px 0 8px">Élargir la recherche</div>
       <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45;margin-bottom:10px">
@@ -4971,6 +5001,7 @@ if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, collectResponses, mealResponse, matchShoppingItem,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
+  IG_TRACE, igCite,
   computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL
 });
 

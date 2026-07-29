@@ -118,7 +118,8 @@ Le workflow `release.yml` crée la release et y attache `standalone.html` ainsi 
 | Donnée | Source | Version |
 |---|---|---|
 | Glucides et calories aux 100 g | [Table Ciqual](https://ciqual.anses.fr/), ANSES — [doi:10.57745/RDMHWY](https://entrepot.recherche.data.gouv.fr/dataset.xhtml?persistentId=doi:10.57745/RDMHWY) | 2025 (3 484 aliments) |
-| Index glycémique | **Aucune source vérifiée — voir ci-dessous** | — |
+| Index glycémique, 70 aliments courants | [Atkinson, Foster-Powell & Brand-Miller](https://doi.org/10.2337/dc08-1239), *International Tables of Glycemic Index and Glycemic Load Values*, Diabetes Care 31(12):2281-2283 | 2008 |
+| Index glycémique, reste du noyau | **Indicatif, non tracé — voir ci-dessous** | — |
 | Seuils IG (bas ≤ 55, moyen 56–69, élevé ≥ 70) | Convention internationale, [Atkinson & Brand-Miller 2021](https://ajcn.nutrition.org/article/S0002-9165(22)00494-4/fulltext) | 2021 |
 | Repères fibres, fruits et légumes, sucres libres | [OMS, apports en glucides](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates) | 2023 |
 | Produits emballés scannés | [Open Food Facts](https://world.openfoodfacts.org/) (ODbL) | en ligne |
@@ -134,7 +135,7 @@ L'app cherche du moins cher au plus cher, et s'arrête dès qu'elle a de quoi r�
 4. **Open Food Facts en ligne** — le reste du catalogue, par nom ou par code-barres. Les produits trouvés sont conservés, donc disponibles hors ligne ensuite.
 5. **FoodData Central** — ~600 000 aliments, surtout américains, pour ce qui manque ailleurs. Fonctionne sans configuration via un quota partagé ; une [clé gratuite](https://fdc.nal.usda.gov/api-key-signup.html) lève la limite.
 
-Les aliments venus des niveaux 2 à 5 portent un IG estimé, jamais mesuré : aucune de ces sources ne le publie, et la fiche le dit.
+Les aliments venus des niveaux 2 à 5 n'ont pas d'IG : aucune de ces sources n'en publie, et la fiche affiche un tiret plutôt qu'un chiffre inventé.
 
 ### Régénérer les bases étendues
 
@@ -155,20 +156,32 @@ Open Food Facts est publié sous [Open Database License (ODbL)](https://opendata
 
 Ciqual est aussi la source de [Gluci-Chek](https://www.accu-chek.fr/produits/application/gluci-chek), l'application de comptage de Roche : ce n'est pas une base concurrente, c'est la même référence.
 
-### L'index glycémique est indicatif
+### L'index glycémique : trois régimes, et la fiche dit toujours lequel
 
-Ciqual ne publie pas d'index glycémique, et aucune valeur d'IG de cette app n'est traçable jusqu'à une source. Une version antérieure de ce README citait les *International Tables of Glycemic Index 2021* — la vérification n'avait jamais été faite, la mention est retirée.
+Ciqual ne publie pas d'index glycémique, et il n'existe **pas de base d'IG libre, exploitable par machine et faisant autorité**. Celle de l'[Université de Sydney](https://glycemicindex.com/) est un site de consultation sans export ; les tables publiées sont des suppléments d'article sous droits, non redistribuables dans un dépôt MIT. L'IG varie de surcroît d'un laboratoire à l'autre, avec la maturité, la cuisson et la personne — ces tables séparent elles-mêmes leurs valeurs « précises » de leurs « moins robustes ».
 
-L'audit de la base est parlant : **82 % des IG sont des multiples de 5**, les valeurs les plus fréquentes étant 60, 55, 50, 65, 45. Des mesures de laboratoire ne se distribuent pas ainsi. Les valeurs sont vraisemblables — pomme 38, lentilles 30, banane 52 correspondent aux ordres de grandeur publiés — mais arrondies. Pour les aliments venus de Ciqual, d'Open Food Facts ou de l'USDA, l'IG est calculé par `guessIG()`, une heuristique à base de mots-clés.
+D'où trois régimes, visibles sur chaque fiche :
 
-C'est une limite du domaine, pas seulement de cette app : il n'existe pas de base d'IG libre, exploitable par machine et faisant autorité. Celle de l'[Université de Sydney](https://glycemicindex.com/) est un site de consultation sans export, les tables 2021 sont un supplément d'article sous droits. Et l'IG varie d'un laboratoire à l'autre, avec la maturité, la cuisson et la personne — ces tables séparent elles-mêmes leurs valeurs « précises » de leurs « moins robustes ».
+| | Aliments | Affichage |
+|---|---|---|
+| **Mesuré** | 70 | `53` — la fiche cite la publication, le journal, le DOI, et le nom exact de l'aliment testé |
+| **Indicatif** | reste du noyau | `~53` — valeur héritée, arrondie, jamais confrontée à une table |
+| **Inconnu** | 53 115 des bases étendues | `—` — aucune de ces sources ne publie d'IG |
 
-Conséquences dans l'app :
+**Les 70 valeurs mesurées** sont saisies à la main dans [`tools/ig-ref.mjs`](tools/ig-ref.mjs), une par une, chacune rattachée à sa publication et à l'aliment réellement mesuré (« Riz blanc cuit » → *White rice, boiled*). Ce n'est pas une copie de table : une valeur isolée est un fait, c'est la sélection et l'agencement d'une table entière qui sont protégés. Le rapprochement lui-même est écrit en clair, pour qu'il soit vérifiable et contestable.
 
-- sur les **1 042 aliments du noyau**, l'IG est affiché préfixé d'un `~` et libellé **indicatif**. Il sert à comparer deux aliments, pas à calculer.
-- sur les **53 115 aliments des bases étendues**, il n'y a **plus d'IG du tout**. Une fonction `guessIG()` le devinait auparavant à partir de mots-clés du nom — « chocolat » → 60, « riz » → 68, sinon 55. Elle fabriquait un chiffre d'apparence mesurée pour chaque produit : un « Danette café » ressortait à IG 60 sans que personne n'ait jamais testé ce produit. Elle est supprimée, la fiche affiche un tiret et « IG inconnu ».
+Ces valeurs **remplacent** celles saisies à la main, et l'écart est instructif : quinoa 35 → 53, riz complet 50 → 68, patate douce 50 → 63, pommes de terre vapeur 65 → 78. Il va presque toujours dans le même sens — les valeurs héritées flattaient les aliments réputés « à IG bas ».
 
-La charge glycémique suit la même règle : elle n'est calculée que là où l'IG existe.
+```bash
+node tools/ig-ref.mjs           # couverture et écarts, n'écrit rien
+node tools/ig-ref.mjs --apply   # écrit la table IG_SRC dans db.json
+```
+
+**L'IG indicatif** du reste du noyau est resté tel quel, et l'audit dit pourquoi s'en méfier : **82 % de ces valeurs sont des multiples de 5**, les plus fréquentes étant 60, 55, 50, 65, 45. Des mesures de laboratoire ne se distribuent pas ainsi. Elles restent vraisemblables, elles ne sont pas traçables — le `~` et le mot « indicatif » sont là pour ça.
+
+**Aucun IG sur les bases étendues.** Une fonction `guessIG()` le devinait auparavant à partir de mots-clés du nom — « chocolat » → 60, « riz » → 68, sinon 55. Elle fabriquait un chiffre d'apparence mesurée pour chaque produit : un « Danette café » ressortait à IG 60 sans que personne n'ait jamais testé ce produit. Elle est supprimée.
+
+La charge glycémique suit la même règle : elle n'est calculée que là où l'IG existe, et n'est dite « glycémique » plutôt qu'« indicative » que là où l'IG est mesuré.
 
 ### Vérifier les valeurs
 
