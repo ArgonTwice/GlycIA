@@ -10,7 +10,7 @@ const {
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, mealResponse, matchShoppingItem, gluPath,
   migrateIgPerso, IG_ORIG,
-  navStack, pushNav, closeNav, navTab, go, curTab,
+  navStack, pushNav, closeNav, navTab, go, curTab, removeMeal,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, toGl, fmtDur, IGP, state, ALL
@@ -288,6 +288,38 @@ describe('tracé de la courbe', () => {
   });
 });
 
+describe('retirer un repas', () => {
+  const repas = (id, nom) => ({ id, name: nom, time: new Date(), carbs: 30, ig: 50, icon: '🍽️' });
+
+  test('le repas retire peut etre remis a sa place', () => {
+    state.journal = [repas('a', 'Petit-dejeuner'), repas('b', 'Dejeuner'), repas('c', 'Diner')];
+    const r = removeMeal('b');
+    assert.ok(r);
+    assert.equal(r.name, 'Dejeuner');
+    assert.deepEqual(state.journal.map(m => m.id), ['a', 'c']);
+    r.undo();
+    /* Un push le remettrait a la fin : le dejeuner passerait apres le diner,
+       et « annuler » n'annulerait pas vraiment. */
+    assert.deepEqual(state.journal.map(m => m.id), ['a', 'b', 'c'], 'remis a son rang');
+    state.journal = [];
+  });
+
+  test('le repas revient intact, pas reconstruit', () => {
+    const m = repas('a', 'Tartines');
+    state.journal = [m];
+    removeMeal('a').undo();
+    assert.equal(state.journal[0], m, 'meme objet : id, heure et source sont preserves');
+    state.journal = [];
+  });
+
+  test('un identifiant inconnu ne retire rien', () => {
+    state.journal = [repas('a', 'Pomme')];
+    assert.equal(removeMeal('zzz'), null);
+    assert.equal(state.journal.length, 1);
+    state.journal = [];
+  });
+});
+
 /* Sur Android, le bouton retour ferme la PWA quand il n'a rien a defaire.
    Une modale ouverte, un appui reflexe, et on est dehors avec le repas en
    cours de saisie. C'est le geste le plus courant du systeme. */
@@ -480,7 +512,9 @@ describe('capteur de glycémie', () => {
   /* Un point relu d'un appel à l'autre ne doit pas doubler la courbe. */
   test('un même instant ne compte qu’une fois', () => {
     forgetGlucose();
-    const t = Date.now() - H;
+    /* Aligné sur la minute : sinon les deux points tombent de part et d'autre
+       d'une frontière une fois sur soixante, et le test clignote. */
+    const t = Math.floor((Date.now() - H) / 60000) * 60000;
     mergeGlucose([{ t: new Date(t), mgdl: 100 }]);
     mergeGlucose([{ t: new Date(t + 900), mgdl: 101 }]);   // même minute, valeur réajustée
     assert.equal(state.glucose.length, 1);

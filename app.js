@@ -379,6 +379,24 @@ function addMeal({ icon, name, carbs, ig, src }) {
   renderDay();
 }
 
+/* Retire un repas et rend de quoi le remettre là où il était.
+   La croix est petite et le journal se parcourt au pouce : le geste part tout
+   seul. Plutôt que de demander « êtes-vous sûr ? » — ce qui alourdirait les
+   vingt suppressions voulues pour la seule qui ne l'était pas — on retire
+   tout de suite et on laisse défaire. */
+function removeMeal(id) {
+  const i = state.journal.findIndex(m => m.id === id);
+  if (i < 0) return null;
+  const [retire] = state.journal.splice(i, 1);
+  renderDay();
+  return {
+    name: retire.name,
+    /* L'index, pas un push : remis à la fin, le repas de 8 h se retrouverait
+       après celui de 20 h, et l'annulation ne serait plus une annulation. */
+    undo: () => { state.journal.splice(i, 0, retire); renderDay(); }
+  };
+}
+
 const PRAISE = [
   'C\'est noté, sans jugement.',
   'Ajouté. Tu gères ta journée, pas l\'inverse.',
@@ -387,12 +405,33 @@ const PRAISE = [
   'C\'est dans la boîte. Profite de ton repas.'
 ];
 
-function toast(msg) {
+/* `action` : { label, fn }. Le toast devient alors cliquable et reste à
+   l'écran plus longtemps — le temps de comprendre ce qui vient de se passer
+   et d'attraper le bouton. C'est le filet de sécurité des gestes destructifs :
+   plutôt que de demander « êtes-vous sûr ? » avant chaque suppression, on
+   supprime tout de suite et on laisse défaire. Moins de friction au quotidien,
+   et rien de perdu. */
+function toast(msg, action) {
   const t = document.createElement('div');
-  t.className = 'toast';
+  t.className = 'toast' + (action ? ' act' : '');
   t.innerHTML = `<svg><use href="#i-check"/></svg><span>${msg}</span>`;
+  if (action) {
+    const b = document.createElement('button');
+    b.className = 'undo';
+    b.textContent = action.label;
+    b.onclick = () => { partir(); action.fn(); };
+    t.appendChild(b);
+  }
   $('#toastZone').appendChild(t);
-  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 2600);
+
+  let id = null;
+  function partir() {
+    if (!id) return;                 // déjà en cours de sortie
+    clearTimeout(id); id = 0;
+    t.classList.add('out');
+    setTimeout(() => t.remove(), 300);
+  }
+  id = setTimeout(partir, action ? 6500 : 2600);
 }
 
 /* ==========================================================================
@@ -529,8 +568,9 @@ document.addEventListener('click', e => {
   if (e.target.classList.contains('veil')) { closeModal(e.target); return; }
   const del = e.target.closest('[data-del]');
   if (del) {
-    state.journal = state.journal.filter(m => m.id !== del.dataset.del);
-    renderDay(); toast('Repas retiré du journal'); return;
+    const r = removeMeal(del.dataset.del);
+    if (r) toast(`${esc(r.name)} retiré`, { label: 'Annuler', fn: r.undo });
+    return;
   }
   const fav = e.target.closest('[data-fav]');
   if (fav) {
@@ -4667,11 +4707,34 @@ function renderSettings() {
     disconnectCgm('Compte Dexcom déconnecté');
   };
 
-  $('#wipe').onclick = () => {
+  /* Seul geste de l'app qu'on ne peut pas défaire : journal, historique,
+     favoris personnels, capteur, tout part. Il se déclenchait sur un appui,
+     dans un écran qu'on parcourt au pouce. Deux appuis, donc, et le second
+     dit ce qu'il détruit — pas un « êtes-vous sûr ? » qu'on valide sans lire.
+     Le bouton se rétracte tout seul : rester armé serait un piège. */
+  let armeId = null;
+  const wipe = $('#wipe');
+  const desarmer = () => {
+    clearTimeout(armeId); armeId = null;
+    wipe.textContent = 'Tout effacer';
+    wipe.classList.remove('danger');
+  };
+  wipe.onclick = () => {
+    if (!armeId) {
+      const jours = PAST.length, repas = state.journal.length;
+      wipe.textContent = repas || jours
+        ? `Confirmer : effacer ${repas} repas et ${jours} jours d'historique`
+        : 'Confirmer : tout effacer';
+      wipe.classList.add('danger');
+      armeId = setTimeout(desarmer, 5000);
+      return;
+    }
+    desarmer();
     store.del('glycia.data'); store.del('glycia.key'); store.del('glycia.proxy');
     store.del('glycia.onboarded'); store.del('glycia.profile'); store.del(MYKEY);
     store.del(NS_URL); store.del(NS_TOKEN); store.del(IGP_KEY); store.del(USDA_KEY);
     store.del(CGM_PROV); store.del(LLU_SESS); store.del(DEX_SESS); store.del(GLU_HIST);
+    store.del(IGP_VER);
     location.reload();
   };
 }
@@ -5164,7 +5227,7 @@ if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, collectResponses, mealResponse, matchShoppingItem, gluPath,
   migrateIgPerso, IG_ORIG,
-  navStack, pushNav, closeNav, navTab, go, curTab: () => curTab,
+  navStack, pushNav, closeNav, navTab, go, curTab: () => curTab, removeMeal,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL

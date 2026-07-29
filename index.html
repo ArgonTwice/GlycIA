@@ -188,6 +188,12 @@ ul{margin:0;padding:0;list-style:none}
 .btn-ghost:hover{background:#E9E3D6}
 .btn-outline{background:transparent;border:1.5px solid var(--line);color:var(--ink-soft)}
 .btn-outline:hover{border-color:var(--ink-faint);color:var(--ink)}
+/* Bouton armé : un geste irréversible ne doit pas ressembler aux autres.
+   Il s'élargit aussi, parce qu'il dit alors ce qu'il détruit. */
+.btn.danger{
+  background:var(--terra);border-color:var(--terra);color:#fff;
+  font-size:13.5px;line-height:1.3;white-space:normal;height:auto;padding:12px 16px;
+}
 .btn-block{display:flex;width:100%}
 .btn-lg{padding:19px 22px;font-size:17.5px}
 .btn[disabled]{opacity:.45;pointer-events:none}
@@ -808,6 +814,15 @@ input[type=range]::-moz-range-thumb{
 }
 .toast svg{width:17px;height:17px;flex:none;color:var(--sage)}
 .toast.out{animation:toastOut .28s ease both}
+/* Un toast porteur d'action redevient cliquable : la zone entière est en
+   pointer-events:none pour ne pas gêner l'app en dessous. Cible à 44 px de
+   haut, minimum tactile, parce qu'on l'attrape vite et sans viser. */
+.toast.act{pointer-events:auto;padding-right:6px}
+.toast .undo{
+  background:rgba(255,255,255,.14);color:#fff;border:0;font:inherit;font-weight:600;
+  padding:9px 15px;min-height:44px;border-radius:var(--r-pill);margin-left:4px;white-space:nowrap;
+}
+.toast .undo:active{background:rgba(255,255,255,.26)}
 @keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.94)}to{opacity:1;transform:none}}
 @keyframes toastOut{to{opacity:0;transform:translateY(10px) scale(.96)}}
 
