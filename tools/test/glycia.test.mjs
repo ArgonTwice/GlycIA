@@ -8,7 +8,7 @@ import api, { navigateur } from './harness.mjs';
 const {
   normalize, clamp, round, fmtQ, igLabel, igClass, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
-  igKey, personalIg, mealResponse, matchShoppingItem, gluPath,
+  igKey, personalIg, mealResponse, matchShoppingItem, gluPath, unent,
   migrateIgPerso, IG_ORIG,
   navStack, pushNav, closeNav, navTab, go, curTab, removeMeal,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
@@ -285,6 +285,35 @@ describe('tracé de la courbe', () => {
   test('un point isolé se dessine sans planter', () => {
     assert.equal((gluPath([{ t: new Date(), mgdl: 100 }], X, Y).match(/M/g) || []).length, 1);
     assert.equal(gluPath([], X, Y), '');
+  });
+});
+
+/* Un nom qui arrive avec des entites HTML traversait toute la chaine jusqu'a
+   esc(), qui reechappait le & : l'utilisateur lisait « l&apos;eau ». */
+describe('noms venus de l’exterieur', () => {
+  test('les entites sont decodees avant affichage', () => {
+    assert.equal(unent('Quinoa, bouilli/cuit à l&apos;eau'), 'Quinoa, bouilli/cuit à l\'eau');
+    assert.equal(unent('Pommes de terre &quot;grenaille&quot;'), 'Pommes de terre "grenaille"');
+    assert.equal(unent('Traces &lt; 0,5 g'), 'Traces < 0,5 g');
+    assert.equal(unent('Chips &#39;nature&#39;'), 'Chips \'nature\'');
+  });
+
+  test('un nom deja propre n’est pas touche', () => {
+    for (const n of ['M&S Food', 'Chef Select — curry & barbecue', 'Yaourt nature', ''])
+      assert.equal(unent(n), n);
+  });
+
+  /* Des saisies d'Open Food Facts sont encodees deux fois. */
+  test('le double encodage est defait, mais pas a l’infini', () => {
+    assert.equal(unent('Pik&amp;amp;croq'), 'Pik&croq');
+    /* Trois passages au plus : un nom fait pour resister s'arrete la plutot
+       que de boucler. Cinq couches d'encodage, trois retirees, deux restent. */
+    assert.equal(unent('&amp;amp;amp;amp;amp;lt;'), '&amp;amp;lt;');
+  });
+
+  test('les bases livrees avec l’app sont propres', () => {
+    const sales = ALL.filter(f => /&(apos|quot|amp|lt|gt|nbsp);|&#\d+;/.test(f.n));
+    assert.deepEqual(sales.map(f => f.n), [], 'aucune entite ne doit rester dans db.json');
   });
 });
 

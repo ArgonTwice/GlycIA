@@ -2063,6 +2063,28 @@ function renderTimeline() {
 
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
 
+/* L'inverse d'esc(), pour ce qui ARRIVE. Des noms de produits d'Open Food
+   Facts et de l'USDA portent des entités HTML : esc() rééchappe alors le &,
+   et l'utilisateur lit « Quinoa cuit à l&apos;eau » au lieu de l'apostrophe.
+   Les bases livrées avec l'app sont nettoyées à la génération ; ceci couvre
+   ce qui vient du réseau, hors de notre contrôle.
+   Certaines saisies sont encodées deux fois — « Pik&amp;amp;croq » veut dire
+   « Pik&croq » — d'où la reprise, bornée : sans borne, un nom contenant
+   vraiment « &amp; » comme texte se ferait déshabiller indéfiniment. */
+const ENTITES = { apos: '\'', quot: '"', lt: '<', gt: '>', nbsp: ' ', amp: '&' };
+function unent(s) {
+  let v = String(s);
+  for (let i = 0; i < 3; i++) {
+    const w = v.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
+      .replace(/&#[xX]([0-9a-fA-F]+);/g, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+      .replace(/&(apos|quot|lt|gt|nbsp);/g, (_, e) => ENTITES[e])
+      .replace(/&amp;/g, '&');
+    if (w === v) return v;
+    v = w;
+  }
+  return v;
+}
+
 /* ---------- Réponse glycémique des 3 h qui suivent un repas ----------
    Description factuelle : pic, écart à la base, retour. Aucune lecture,
    aucun conseil — voir la ligne rouge de la section 30. */
@@ -3545,7 +3567,7 @@ function offToEntry(p) {
   const nu = p.nutriments || {};
   const c = +nu.carbohydrates_100g;
   if (!isFinite(c)) return null;
-  let name = (p.product_name_fr || p.product_name || '').trim();
+  let name = unent(p.product_name_fr || p.product_name || '').trim();
   if (!name) return null;
   name = withBrand(name, Array.isArray(p.brands) ? p.brands.join(',') : p.brands);
   return {
@@ -3604,7 +3626,7 @@ function usdaToEntry(p) {
   };
   const c = val('Carbohydrate, by difference');
   if (c === undefined) return null;
-  const nom = String(p.description || '').trim();
+  const nom = unent(p.description || '').trim();
   if (!nom) return null;
   const name = withBrand(nom.charAt(0) + nom.slice(1).toLowerCase(), p.brandOwner || p.brandName);
   return {
@@ -5615,7 +5637,7 @@ function offToFood(p, code) {
   const nu = p.nutriments || {};
   const c = +nu.carbohydrates_100g;
   if (!isFinite(c)) return null;
-  let name = (p.product_name_fr || p.product_name || '').trim();
+  let name = unent(p.product_name_fr || p.product_name || '').trim();
   if (!name) return null;
   name = withBrand(name, p.brands);
   return {
@@ -7008,7 +7030,7 @@ generateRetro(false);
 if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   normalize, clamp, round, esc, fmtQ, igClass, igLabel, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
-  igKey, personalIg, collectResponses, mealResponse, matchShoppingItem, gluPath,
+  igKey, personalIg, collectResponses, mealResponse, matchShoppingItem, gluPath, unent,
   migrateIgPerso, IG_ORIG,
   navStack, pushNav, closeNav, navTab, go, curTab: () => curTab, removeMeal,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,

@@ -35,6 +35,31 @@ const MAX = +(process.argv.find(a => /^--max=/.test(a)) || '').split('=')[1] || 
 const norm = s => String(s).toLowerCase().replace(/œ/g, 'oe')
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
 const nombre = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+
+/* Des saisies d'Open Food Facts arrivent avec des entités HTML dans le nom.
+   Sans décodage, esc() rééchappe le & côté app et l'utilisateur lit
+   « Pommes de terre &quot;grenaille&quot; ». &amp; en dernier, sinon
+   &amp;lt; donnerait « < » au lieu de « &lt; ». */
+const ENTITES = { apos: '\'', quot: '"', lt: '<', gt: '>', nbsp: ' ' };
+const unPassage = s => String(s)
+  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
+  .replace(/&#[xX]([0-9a-fA-F]+);/g, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+  .replace(/&(apos|quot|lt|gt|nbsp);/g, (_, e) => ENTITES[e])
+  .replace(/&amp;/g, '&');
+
+/* Certaines saisies sont encodees deux fois : « Pik&amp;amp;croq » veut dire
+   « Pik&croq ». On repasse donc jusqu'a stabilite, mais au plus trois fois —
+   sans borne, un nom contenant vraiment « &amp; » comme texte se ferait
+   deshabiller a l'infini. */
+function detexte(s) {
+  let v = String(s);
+  for (let i = 0; i < 3; i++) {
+    const w = unPassage(v);
+    if (w === v) break;
+    v = w;
+  }
+  return v;
+}
 const borne = (v, a, b) => Math.min(b, Math.max(a, v));
 
 /* Le noyau et Ciqual gardent la main : pas de doublon. */
@@ -63,7 +88,7 @@ for await (const ligne of rl) {
 
   /* Les saisies d'Open Food Facts commencent parfois par une virgule ou un
      point : on retire la ponctuation de tete, et on exige au moins une lettre. */
-  const nom = (c[1] || '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/\s{2,}/g, ' ').trim();
+  const nom = detexte(c[1] || '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/\s{2,}/g, ' ').trim();
   if (!nom || nom.length < 2 || nom.length > 70 || !/\p{L}/u.test(nom)) { sansNom++; continue; }
   const gluc = nombre(c[6]), kcal = nombre(c[4]);
   if (gluc === null || kcal === null || gluc < 0 || gluc > 100 || kcal < 0 || kcal > 900) { horsBornes++; continue; }
@@ -95,7 +120,7 @@ const fichier = {
   _format: '[nom, glucides/100g, kcal/100g, lipides/100g|null, code-barres]',
   _reserves: [
     'Valeurs declarees par les fabricants, saisies par les contributeurs.',
-    "L'index glycemique n'y figure pas : l'app l'estime, la fiche le dit.",
+    "L'index glycemique n'y figure pas : la fiche affiche un tiret plutot qu'un chiffre inventé.",
     'Ne sont gardes que les produits scannes au moins une fois, les plus courants d\'abord.'
   ],
   _genere: new Date().toISOString().slice(0, 10),
