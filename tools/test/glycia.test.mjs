@@ -9,8 +9,13 @@ const {
   normalize, clamp, round, fmtQ, igLabel, igClass, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, mealResponse, matchShoppingItem,
+  mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   computeTotals, toGl, fmtDur, IGP, state, ALL
 } = api;
+
+/* Le Worker n'a pas de DOM : il s'importe directement. Seul `export default`
+   sert au déploiement, `__test` n'existe que pour ce fichier. */
+const { __test: worker } = await import('../../worker/worker.js');
 
 describe('utilitaires', () => {
   test('normalize retire accents et casse', () => {
@@ -217,6 +222,95 @@ describe('réponse glycémique', () => {
   test('sans capteur, pas de courbe', () => {
     state.glucose = [];
     assert.equal(mealResponse({ time: new Date(), carbs: 60, ig: 60 }), null);
+  });
+});
+
+describe('capteur de glycémie', () => {
+  const H = 3600e3;
+
+  test('les lectures se complètent au lieu de se remplacer', () => {
+    forgetGlucose();
+    const t = Date.now() - 2 * H;
+    mergeGlucose([{ t: new Date(t), mgdl: 100 }, { t: new Date(t + 5 * 60000), mgdl: 105 }]);
+    mergeGlucose([{ t: new Date(t + 10 * 60000), mgdl: 110 }]);
+    assert.equal(state.glucose.length, 3, 'LibreLinkUp ne rend que 12 h : la courbe doit s’accumuler');
+    assert.deepEqual(state.glucose.map(p => p.mgdl), [100, 105, 110], 'et rester triée');
+    forgetGlucose();
+  });
+
+  /* Un point relu d'un appel à l'autre ne doit pas doubler la courbe. */
+  test('un même instant ne compte qu’une fois', () => {
+    forgetGlucose();
+    const t = Date.now() - H;
+    mergeGlucose([{ t: new Date(t), mgdl: 100 }]);
+    mergeGlucose([{ t: new Date(t + 900), mgdl: 101 }]);   // même minute, valeur réajustée
+    assert.equal(state.glucose.length, 1);
+    assert.equal(state.glucose[0].mgdl, 101, 'la dernière valeur connue gagne');
+    forgetGlucose();
+  });
+
+  test('au-delà de 24 h, et dans le futur, les points tombent', () => {
+    forgetGlucose();
+    mergeGlucose([
+      { t: new Date(Date.now() - 25 * H), mgdl: 100 },   // trop vieux
+      { t: new Date(Date.now() + 2 * H), mgdl: 100 },    // horloge déréglée
+      { t: new Date(Date.now() - H), mgdl: 120 },
+      { t: new Date(Date.now() - H + 60000), mgdl: 0 },  // valeur impossible
+      { t: new Date('n’importe quoi'), mgdl: 120 }
+    ]);
+    assert.equal(state.glucose.length, 1);
+    assert.equal(state.glucose[0].mgdl, 120);
+    forgetGlucose();
+  });
+
+  test('la courbe survit à un rechargement', () => {
+    forgetGlucose();
+    mergeGlucose([{ t: new Date(Date.now() - H), mgdl: 142 }]);
+    state.glucose = [];
+    restoreGlucose();
+    assert.equal(state.glucose.length, 1);
+    assert.equal(state.glucose[0].mgdl, 142);
+    assert.ok(state.glucose[0].t instanceof Date, 'le JSON rend des nombres, pas des dates');
+    forgetGlucose();
+  });
+
+  /* Une URL Nightscout posée avant l'arrivée des trois fournisseurs vaut
+     choix : sans ça, les installations existantes perdraient leur courbe. */
+  test('une installation Nightscout d’avant garde son capteur', () => {
+    store.del('glycia.cgmProvider');
+    assert.equal(cgmProvider(), '');
+    store.set('glycia.nightscout', 'https://exemple.up.railway.app');
+    assert.equal(cgmProvider(), 'nightscout');
+    store.set('glycia.cgmProvider', 'librelinkup');
+    assert.equal(cgmProvider(), 'librelinkup', 'le choix explicite prime');
+    store.del('glycia.cgmProvider'); store.del('glycia.nightscout');
+  });
+
+  /* Abbott date en format américain sans fuseau. Lire « 3/7 » comme le 3 juillet
+     décalerait toute la courbe de quatre mois. */
+  test('les horodatages Abbott sont lus en UTC, mois d’abord', () => {
+    assert.equal(worker.usDateToMs('3/7/2026 2:05:00 PM'), Date.UTC(2026, 2, 7, 14, 5, 0));
+    assert.equal(worker.usDateToMs('12/31/2026 12:00:00 AM'), Date.UTC(2026, 11, 31, 0, 0, 0));
+    assert.equal(worker.usDateToMs('12/31/2026 12:00:00 PM'), Date.UTC(2026, 11, 31, 12, 0, 0));
+    assert.equal(worker.usDateToMs('7/29/2026 09:14:03'), Date.UTC(2026, 6, 29, 9, 14, 3));
+    assert.equal(worker.usDateToMs('pas une date'), null);
+    assert.equal(worker.usDateToMs(null), null);
+  });
+
+  test('une mesure Abbott devient un point, ou rien', () => {
+    assert.deepEqual(
+      worker.lluPoint({ FactoryTimestamp: '7/29/2026 09:14:03', ValueInMgPerDl: 118.6 }),
+      { t: Date.UTC(2026, 6, 29, 9, 14, 3), mgdl: 119 }
+    );
+    assert.equal(worker.lluPoint({ FactoryTimestamp: '7/29/2026 09:14:03', ValueInMgPerDl: 0 }), null);
+    assert.equal(worker.lluPoint({ ValueInMgPerDl: 118 }), null);
+    assert.equal(worker.lluPoint(null), null);
+  });
+
+  test('une région inconnue retombe sur l’Europe', () => {
+    assert.equal(worker.lluBase('fr'), 'https://api-fr.libreview.io');
+    assert.equal(worker.lluBase('zz'), 'https://api-eu.libreview.io');
+    assert.equal(worker.lluBase(undefined), 'https://api-eu.libreview.io');
   });
 });
 

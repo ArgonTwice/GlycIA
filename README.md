@@ -25,6 +25,7 @@ Plaisir de manger, zéro culpabilité, zéro charge mentale.
 | ⚡ **SOS Hypo** | Règle des 15 g et minuteur de 15 minutes. |
 | 📍 **Restaurant** | Décryptage d'une carte collée, ou géolocalisation pour trouver les restos autour. |
 | 📊 **7 derniers jours** | Graphe SVG des glucides, sans librairie. |
+| 🩸 **Capteur de glycémie** | Nightscout, LibreLinkUp ou Dexcom : courbe des 24 h, réponse des 3 h sous chaque repas, et un IG recalculé sur tes propres relevés. Affichage seulement — jamais de dose, jamais d'alerte. |
 
 ## Installer
 

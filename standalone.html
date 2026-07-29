@@ -1913,7 +1913,7 @@ const state = {
   recipe: null,
   gpLog: [],
   shoppingList: [],
-  glucose: []          // [{ t: Date, mgdl }] — fenêtre 24 h, capteur Nightscout
+  glucose: []          // [{ t: Date, mgdl }] — fenêtre 24 h, tous capteurs confondus
 };
 
 /* Table d'IG personnelle (section 30). Déclarée ici, et pas à côté de sa
@@ -1925,7 +1925,7 @@ const IGP_MAXOBS = 20;             // observations gardées par aliment
 let IGP = { seen: [], obs: {} };
 const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
 
-/* La France lit en g/L, Nightscout renvoie des mg/dL */
+/* La France lit en g/L, les capteurs renvoient des mg/dL */
 const toGl = v => (v / 100).toFixed(2).replace('.', ',');
 
 /* Démo pré-chargée */
@@ -3864,18 +3864,99 @@ function renderWeek() {
 }
 
 /* ==========================================================================
-   30. CAPTEUR DE GLYCÉMIE — Nightscout
+   30. CAPTEUR DE GLYCÉMIE — Nightscout, LibreLinkUp, Dexcom
    Affichage et corrélation uniquement. Aucune suggestion de dose, aucune
    alerte prédictive, aucune interprétation : ce sont des fonctions de
    dispositif médical. Et pas de « temps dans la cible » : ce serait un
    score, exactement ce que l'app refuse.
+
+   Nightscout se lit en direct depuis le navigateur : une URL suffit, il n'y a
+   pas de secret à protéger. Les deux autres passent par la route /cgm du
+   Worker, parce que le mot de passe Abbott et le client_secret Dexcom ne
+   doivent jamais se trouver dans une page.
    ========================================================================== */
 const NS_URL = 'glycia.nightscout';
 const NS_TOKEN = 'glycia.nsToken';
+const CGM_PROV = 'glycia.cgmProvider';
+const LLU_SESS = 'glycia.lluSession';
+const DEX_SESS = 'glycia.dexSession';
+const GLU_HIST = 'glycia.glucose';
+const GLU_H = 24;                  // fenêtre gardée, en heures
+
 const nsUrl = () => (store.get(NS_URL) || '').trim().replace(/\/+$/, '');
 const nsToken = () => (store.get(NS_TOKEN) || '').trim();
 
-async function fetchGlucose() {
+/* Le réglage explicite prime ; sinon une URL Nightscout déjà posée vaut choix,
+   pour que les installations d'avant les trois fournisseurs continuent. */
+function cgmProvider() {
+  const p = store.get(CGM_PROV);
+  if (p === 'nightscout' || p === 'librelinkup' || p === 'dexcom') return p;
+  return nsUrl() ? 'nightscout' : '';
+}
+
+const CGM_NAMES = { nightscout: 'Nightscout', librelinkup: 'LibreLinkUp', dexcom: 'Dexcom' };
+
+function cgmConnected() {
+  const p = cgmProvider();
+  if (p === 'nightscout') return !!nsUrl();
+  if (p === 'librelinkup') return !!(lluSess() || {}).token;
+  if (p === 'dexcom') return !!(dexSess() || {}).refresh;
+  return false;
+}
+
+const readJson = k => { try { return JSON.parse(store.get(k) || 'null'); } catch (_) { return null; } };
+const lluSess = () => readJson(LLU_SESS);
+const dexSess = () => readJson(DEX_SESS);
+
+/* ---------- Historique local ----------
+   LibreLinkUp ne rend que les 12 dernières heures, Dexcom 24 h par appel, et
+   un téléphone qui dort ne lit rien. On accumule donc localement : chaque
+   lecture complète la courbe au lieu de la remplacer. Clé à la minute, ce qui
+   dédoublonne les points relus d'un appel à l'autre. */
+function mergeGlucose(pts) {
+  const now = Date.now(), cut = now - GLU_H * 3600e3;
+  const by = new Map();
+  state.glucose.concat(pts).forEach(p => {
+    const t = +p.t, v = Math.round(+p.mgdl);
+    if (!isFinite(t) || t < cut || t > now + 6e5) return;   // 10 min de tolérance d'horloge
+    if (!isFinite(v) || v <= 0) return;
+    by.set(Math.round(t / 60000), { t: new Date(t), mgdl: v });
+  });
+  state.glucose = [...by.values()].sort((a, b) => a.t - b.t);
+  store.set(GLU_HIST, JSON.stringify(state.glucose.map(p => [+p.t, p.mgdl])));
+}
+
+function restoreGlucose() {
+  const rows = readJson(GLU_HIST);
+  if (!Array.isArray(rows)) return;
+  state.glucose = [];
+  mergeGlucose(rows.map(r => ({ t: new Date(r[0]), mgdl: r[1] })));
+}
+
+function forgetGlucose() {
+  state.glucose = [];
+  store.del(GLU_HIST);
+}
+
+/* ---------- Appel de la route /cgm du Worker ---------- */
+async function cgmPost(body) {
+  const px = getProxy();
+  if (!px) throw new Error('Ce capteur a besoin du proxy : renseigne-le dans Réglages → Clé Claude.');
+  const r = await fetch(px.replace(/\/+$/, '') + '/cgm', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const j = await r.json().catch(() => null);
+  if (!j) throw new Error('Réponse illisible du proxy.');
+  if (j.error) throw new Error(j.error);
+  return j;
+}
+
+const toPoints = j => (Array.isArray(j.points) ? j.points : []).map(p => ({ t: new Date(p.t), mgdl: p.mgdl }));
+
+/* ---------- Nightscout ---------- */
+async function fetchNightscout() {
   const base = nsUrl();
   if (!base) return [];
   const tok = nsToken();
@@ -3884,26 +3965,134 @@ async function fetchGlucose() {
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const rows = await r.json();
   if (!Array.isArray(rows)) throw new Error('réponse inattendue');
-  const cut = Date.now() - 24 * 3600 * 1000;
   return rows
     .map(e => ({ t: new Date(e && (e.date || Date.parse(e.dateString))), mgdl: Math.round(+(e && e.sgv)) }))
-    .filter(p => isFinite(p.mgdl) && p.mgdl > 0 && isFinite(+p.t) && +p.t >= cut)
-    .sort((a, b) => a.t - b.t);
+    .filter(p => isFinite(p.mgdl) && p.mgdl > 0 && isFinite(+p.t));
+}
+
+/* ---------- LibreLinkUp ----------
+   Le navigateur ne détient qu'un jeton de session. Quand Abbott le périme, on
+   l'oublie et on redemande le mot de passe : il n'a jamais été stocké. */
+async function fetchLibre() {
+  const s = lluSess();
+  if (!s || !s.token) throw new Error('Aucun compte LibreLinkUp connecté.');
+  try {
+    const j = await cgmPost({
+      provider: 'librelinkup', action: 'graph',
+      token: s.token, accountId: s.accountId, region: s.region, patientId: s.patientId
+    });
+    return toPoints(j);
+  } catch (e) {
+    if (String(e.message) === 'expired') {
+      store.del(LLU_SESS);
+      throw new Error('Session LibreLinkUp expirée — reconnecte-toi dans les Réglages.');
+    }
+    throw e;
+  }
+}
+
+async function lluLogin(email, password) {
+  const j = await cgmPost({ provider: 'librelinkup', action: 'login', email, password });
+  const conns = j.connections || [];
+  store.set(LLU_SESS, JSON.stringify({
+    token: j.token, expires: j.expires, accountId: j.accountId, region: j.region,
+    patientId: conns[0] && conns[0].patientId, name: conns[0] && conns[0].name
+  }));
+  store.set(CGM_PROV, 'librelinkup');
+  return conns;
+}
+
+/* ---------- Dexcom ----------
+   Jeton court, jeton de rafraîchissement long. Les deux vivent dans ce
+   navigateur et se révoquent depuis le compte Dexcom ; le client_secret,
+   lui, ne quitte jamais le Worker. */
+function saveDex(j) {
+  const old = dexSess() || {};
+  store.set(DEX_SESS, JSON.stringify({
+    access: j.access, refresh: j.refresh || old.refresh, expires: j.expires
+  }));
+}
+
+async function dexAccess(force) {
+  const s = dexSess();
+  if (!s || !s.refresh) throw new Error('Aucun compte Dexcom connecté.');
+  if (!force && s.access && s.expires > Date.now() + 60e3) return s.access;
+  const j = await cgmPost({ provider: 'dexcom', action: 'refresh', refresh: s.refresh });
+  saveDex(j);
+  return j.access;
+}
+
+async function fetchDexcom() {
+  let access = await dexAccess(false);
+  try {
+    return toPoints(await cgmPost({ provider: 'dexcom', action: 'egvs', access }));
+  } catch (e) {
+    if (String(e.message) !== 'expired') throw e;
+    access = await dexAccess(true);            // une seule reprise, puis on abandonne
+    return toPoints(await cgmPost({ provider: 'dexcom', action: 'egvs', access }));
+  }
+}
+
+/* Adresse de retour du consentement Dexcom. Doit correspondre au caractère
+   près à celle déclarée sur developer.dexcom.com, d'où le pathname nu. */
+const dexRedirect = () => location.origin + location.pathname;
+
+async function dexcomConnect() {
+  const c = await cgmPost({ provider: 'dexcom', action: 'config' });
+  if (!c.configured) throw new Error('Dexcom n\'est pas configuré sur ton Worker : pose DEXCOM_CLIENT_ID et DEXCOM_CLIENT_SECRET.');
+  const st = uid();
+  store.set('glycia.dexState', st);
+  location.href = `${c.base}/v2/oauth2/login?client_id=${encodeURIComponent(c.clientId)}`
+    + `&redirect_uri=${encodeURIComponent(dexRedirect())}`
+    + `&response_type=code&scope=offline_access&state=${encodeURIComponent(st)}`;
+}
+
+/* Retour du consentement : Dexcom rappelle l'app avec ?code=…&state=…
+   Le code s'échange côté Worker, puis l'URL est nettoyée pour qu'un
+   rechargement ne rejoue pas un code déjà consommé. */
+async function dexcomCallback() {
+  const q = new URLSearchParams(location.search);
+  const code = q.get('code'), st = q.get('state');
+  if (!code) return false;
+  const expected = store.get('glycia.dexState');
+  history.replaceState(null, '', location.pathname + location.hash);
+  store.del('glycia.dexState');
+  if (!expected || st !== expected) { toast('Retour Dexcom non reconnu'); return false; }
+  try {
+    saveDex(await cgmPost({ provider: 'dexcom', action: 'exchange', code, redirect_uri: dexRedirect() }));
+    store.set(CGM_PROV, 'dexcom');
+    toast('Capteur Dexcom connecté');
+    return true;
+  } catch (e) {
+    toast(e.message || 'Connexion Dexcom refusée');
+    return false;
+  }
+}
+
+/* ---------- Lecture ---------- */
+async function fetchGlucose() {
+  const p = cgmProvider();
+  if (p === 'librelinkup') return fetchLibre();
+  if (p === 'dexcom') return fetchDexcom();
+  return fetchNightscout();
 }
 
 async function loadGlucose(manual) {
   const sect = $('#cgmSect');
-  if (!nsUrl()) { sect.hidden = true; return; }
+  if (!cgmConnected()) { sect.hidden = true; return; }
   sect.hidden = false;
+  restoreGlucose();
+  if (state.glucose.length) renderGlucose();
   if (manual) $('#cgmInfo').textContent = 'Lecture du capteur…';
   try {
-    state.glucose = await fetchGlucose();
+    mergeGlucose(await fetchGlucose());
     renderGlucose();
     collectResponses();        // alimente la table d'IG personnelle
     renderTimeline();          // les courbes par repas apparaissent avec les mesures
-  } catch (_) {
+  } catch (e) {
     /* dégradation : on garde la dernière courbe connue plutôt qu'un écran vide */
-    renderGlucose('Capteur injoignable pour le moment.');
+    renderGlucose(e && e.message ? e.message : 'Capteur injoignable pour le moment.');
+    renderTimeline();
   }
 }
 
@@ -5806,28 +5995,77 @@ function renderSettings() {
     <div class="card" style="margin-top:12px">
       <div class="sect-head"><h3 style="font-size:17px">Capteur de glycémie</h3></div>
       <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.45;margin-bottom:12px">
-        Nightscout : colle l'adresse de ton site, l'app lit les 24 dernières heures et trace la courbe.
-        Lecture seule, rien n'est envoyé ni modifié chez toi.
+        L'app lit les 24 dernières heures, trace la courbe et la met en regard de tes repas.
+        Lecture seule : rien n'est envoyé ni modifié chez ton fournisseur.
       </p>
-      <div class="searchbox">
-        <svg><use href="#i-search"/></svg>
-        <input id="nsUrlIn" type="url" autocomplete="off" inputmode="url"
-               placeholder="https://<toi>.up.railway.app" value="${esc(store.get(NS_URL) || '')}">
+      <div class="chips" style="margin-bottom:12px">
+        ${['nightscout', 'librelinkup', 'dexcom'].map(p => `<button class="cat${cgmProvider() === p ? ' on' : ''}" data-cgmp="${p}">${CGM_NAMES[p]}</button>`).join('')}
       </div>
-      <div class="searchbox" style="margin-top:8px">
-        <svg><use href="#i-search"/></svg>
-        <input id="nsTokIn" type="password" autocomplete="off"
-               placeholder="Jeton de lecture (facultatif)" value="${esc(store.get(NS_TOKEN) || '')}">
+
+      <div id="cgmNightscout" hidden>
+        <div class="searchbox">
+          <svg><use href="#i-search"/></svg>
+          <input id="nsUrlIn" type="url" autocomplete="off" inputmode="url"
+                 placeholder="https://<toi>.up.railway.app" value="${esc(store.get(NS_URL) || '')}">
+        </div>
+        <div class="searchbox" style="margin-top:8px">
+          <svg><use href="#i-search"/></svg>
+          <input id="nsTokIn" type="password" autocomplete="off"
+                 placeholder="Jeton de lecture (facultatif)" value="${esc(store.get(NS_TOKEN) || '')}">
+        </div>
+        <p class="foot-note" style="text-align:left;margin-top:8px">
+          Le jeton n'est utile que si ton site n'est pas en lecture publique. Adresse et jeton
+          restent dans ce navigateur, et l'app parle à ton site directement.
+        </p>
+        <div class="sheet-foot">
+          <button class="btn btn-ghost" id="nsDel">Déconnecter</button>
+          <button class="btn btn-primary" id="nsSave"><svg><use href="#i-check"/></svg> Enregistrer</button>
+        </div>
       </div>
-      <p class="foot-note" style="text-align:left;margin-top:8px">
-        Le jeton n'est utile que si ton site n'est pas en lecture publique. Adresse et jeton restent
-        dans ce navigateur. GlycIA affiche la courbe et la met en regard de tes repas :
-        <b>jamais de dose, jamais d'alerte, jamais d'interprétation.</b>
+
+      <div id="cgmLibre" hidden>
+        <p class="foot-note" style="text-align:left;margin:0 0 10px">
+          Identifiants du compte <b>LibreLinkUp</b> — celui qui reçoit le partage, pas le compte
+          LibreLink du capteur. Depuis l'app LibreLink, partage tes données avec ce compte, et
+          ouvre LibreLinkUp une fois pour accepter les conditions d'Abbott.
+        </p>
+        <div class="searchbox">
+          <svg><use href="#i-search"/></svg>
+          <input id="lluMail" type="email" autocomplete="username" inputmode="email"
+                 placeholder="Adresse e-mail LibreLinkUp">
+        </div>
+        <div class="searchbox" style="margin-top:8px">
+          <svg><use href="#i-search"/></svg>
+          <input id="lluPass" type="password" autocomplete="current-password" placeholder="Mot de passe">
+        </div>
+        <p class="foot-note" style="text-align:left;margin-top:8px">
+          Le mot de passe part à ton proxy, qui le transmet à Abbott et n'en garde rien.
+          Ce navigateur ne conserve qu'un jeton de session, qui expire tout seul.
+          ${(lluSess() || {}).name ? `<br><b style="color:var(--sage-deep)">Connecté : ${esc(lluSess().name)}</b>` : ''}
+        </p>
+        <div class="sheet-foot">
+          <button class="btn btn-ghost" id="lluDel">Déconnecter</button>
+          <button class="btn btn-primary" id="lluSave"><svg><use href="#i-check"/></svg> Se connecter</button>
+        </div>
+      </div>
+
+      <div id="cgmDexcom" hidden>
+        <p class="foot-note" style="text-align:left;margin:0 0 10px">
+          Connexion officielle par OAuth : tu t'identifies chez Dexcom, jamais ici. Ton proxy doit
+          porter <code>DEXCOM_CLIENT_ID</code> et <code>DEXCOM_CLIENT_SECRET</code> — voir
+          <code>worker/LISEZMOI.md</code>.
+          ${(dexSess() || {}).refresh ? '<br><b style="color:var(--sage-deep)">Compte Dexcom connecté.</b>' : ''}
+        </p>
+        <div class="sheet-foot">
+          <button class="btn btn-ghost" id="dexDel">Déconnecter</button>
+          <button class="btn btn-primary" id="dexGo">Connecter mon compte Dexcom</button>
+        </div>
+      </div>
+
+      <p class="foot-note" style="text-align:left;margin-top:10px">
+        Quel que soit le capteur : <b>jamais de dose, jamais d'alerte, jamais d'interprétation.</b>
+        L'app montre la courbe et te laisse la lire.
       </p>
-      <div class="sheet-foot">
-        <button class="btn btn-ghost" id="nsDel">Déconnecter</button>
-        <button class="btn btn-primary" id="nsSave"><svg><use href="#i-check"/></svg> Enregistrer</button>
-      </div>
       <div id="nsTest"></div>
     </div>
     <div class="card" style="margin-top:12px">
@@ -5920,40 +6158,96 @@ function renderSettings() {
     toast(v ? 'Clé FoodData Central enregistrée' : 'Clé effacée — quota partagé');
   };
 
+  /* Un seul capteur à la fois : trois panneaux, celui du fournisseur choisi. */
+  const cgmPanels = { nightscout: '#cgmNightscout', librelinkup: '#cgmLibre', dexcom: '#cgmDexcom' };
+  function showCgmPanel(p) {
+    Object.keys(cgmPanels).forEach(k => { $(cgmPanels[k]).hidden = k !== p; });
+    $$('#m-set [data-cgmp]').forEach(b => b.classList.toggle('on', b.dataset.cgmp === p));
+  }
+  showCgmPanel(cgmProvider() || 'nightscout');
+  $$('#m-set [data-cgmp]').forEach(b => {
+    b.onclick = () => { showCgmPanel(b.dataset.cgmp); $('#nsTest').innerHTML = ''; };
+  });
+
+  /* Test commun aux trois : on lit vraiment, et on le dit sans jargon. */
+  async function testCgm() {
+    $('#nsTest').innerHTML = `<div class="online-wait">Test de la connexion…</div>`;
+    try {
+      const pts = await fetchGlucose();
+      mergeGlucose(pts);
+      renderGlucose();
+      collectResponses();
+      renderTimeline();
+      $('#cgmSect').hidden = false;
+      $('#nsTest').innerHTML = pts.length
+        ? `<div class="online-wait" style="color:var(--sage-deep)">✅ ${pts.length} mesures lues — la courbe est sur l'accueil.</div>`
+        : `<div class="online-wait">Connexion établie, mais aucune mesure récente à lire.</div>`;
+    } catch (e) {
+      $('#nsTest').innerHTML = `<div class="online-wait" style="color:var(--terra-deep)">${esc(e.message || 'Capteur injoignable.')}</div>`;
+    }
+  }
+
+  function disconnectCgm(msg) {
+    forgetGlucose();
+    $('#cgmSect').hidden = true;
+    $('#nsTest').innerHTML = '';
+    toast(msg);
+  }
+
   $('#nsSave').onclick = async () => {
     const u = $('#nsUrlIn').value.trim().replace(/\/+$/, ''), t = $('#nsTokIn').value.trim();
     if (u && !/^https:\/\//.test(u)) { toast('L\'adresse doit être en https://'); return; }
     if (u) store.set(NS_URL, u); else store.del(NS_URL);
     if (t) store.set(NS_TOKEN, t); else store.del(NS_TOKEN);
-    if (!u) { $('#cgmSect').hidden = true; toast('Capteur déconnecté'); return; }
-    $('#nsTest').innerHTML = `<div class="online-wait">Test de la connexion…</div>`;
-    try {
-      const pts = await fetchGlucose();
-      state.glucose = pts;
-      renderGlucose();
-      renderTimeline();
-      $('#cgmSect').hidden = false;
-      $('#nsTest').innerHTML = pts.length
-        ? `<div class="online-wait" style="color:var(--sage-deep)">✅ ${pts.length} mesures lues — la courbe est sur l'accueil.</div>`
-        : `<div class="online-wait">Connexion établie, mais aucune mesure sur les 24 dernières heures.</div>`;
-    } catch (_) {
-      $('#nsTest').innerHTML = `<div class="online-wait" style="color:var(--terra-deep)">
-        Site injoignable. Vérifie l'adresse, et que la lecture est autorisée (CORS activé, ou jeton renseigné).</div>`;
-    }
+    if (!u) { store.del(CGM_PROV); disconnectCgm('Capteur déconnecté'); return; }
+    store.set(CGM_PROV, 'nightscout');
+    await testCgm();
   };
   $('#nsDel').onclick = () => {
     store.del(NS_URL); store.del(NS_TOKEN);
+    if (cgmProvider() === 'nightscout') store.del(CGM_PROV);
     $('#nsUrlIn').value = ''; $('#nsTokIn').value = '';
-    state.glucose = [];
-    $('#cgmSect').hidden = true;
-    $('#nsTest').innerHTML = '';
-    toast('Capteur déconnecté');
+    disconnectCgm('Capteur déconnecté');
+  };
+
+  $('#lluSave').onclick = async () => {
+    const mail = $('#lluMail').value.trim(), pass = $('#lluPass').value;
+    if (!mail || !pass) { toast('Adresse et mot de passe sont attendus'); return; }
+    $('#nsTest').innerHTML = `<div class="online-wait">Connexion à LibreLinkUp…</div>`;
+    try {
+      const conns = await lluLogin(mail, pass);
+      $('#lluPass').value = '';          // il n'a rien à faire dans le champ une fois envoyé
+      if (conns.length > 1) toast(`${conns.length} capteurs partagés — lecture de ${conns[0].name}`);
+      await testCgm();
+    } catch (e) {
+      $('#nsTest').innerHTML = `<div class="online-wait" style="color:var(--terra-deep)">${esc(e.message || 'Connexion refusée.')}</div>`;
+    }
+  };
+  $('#lluDel').onclick = () => {
+    store.del(LLU_SESS);
+    if (cgmProvider() === 'librelinkup') store.del(CGM_PROV);
+    $('#lluMail').value = ''; $('#lluPass').value = '';
+    disconnectCgm('Compte LibreLinkUp déconnecté');
+  };
+
+  $('#dexGo').onclick = async () => {
+    $('#nsTest').innerHTML = `<div class="online-wait">Ouverture de la page Dexcom…</div>`;
+    try { await dexcomConnect(); }
+    catch (e) {
+      $('#nsTest').innerHTML = `<div class="online-wait" style="color:var(--terra-deep)">${esc(e.message || 'Dexcom injoignable.')}</div>`;
+    }
+  };
+  $('#dexDel').onclick = () => {
+    store.del(DEX_SESS);
+    if (cgmProvider() === 'dexcom') store.del(CGM_PROV);
+    disconnectCgm('Compte Dexcom déconnecté');
   };
 
   $('#wipe').onclick = () => {
     store.del('glycia.data'); store.del('glycia.key'); store.del('glycia.proxy');
     store.del('glycia.onboarded'); store.del('glycia.profile'); store.del(MYKEY);
     store.del(NS_URL); store.del(NS_TOKEN); store.del(IGP_KEY); store.del(USDA_KEY);
+    store.del(CGM_PROV); store.del(LLU_SESS); store.del(DEX_SESS); store.del(GLU_HIST);
     location.reload();
   };
 }
@@ -6431,7 +6725,10 @@ checkScanParam();
 (globalThis.requestIdleCallback || (cb => setTimeout(cb, 2500)))(() => {
   ensureCiqual().then(ok => { if (ok) renderFoods(); });   // même si l'onglet n'est pas ouvert
 });
-loadGlucose();
+/* Dexcom rappelle l'app avec un code d'autorisation dans l'URL : il faut
+   l'échanger avant la première lecture, sinon la courbe n'arriverait qu'au
+   démarrage suivant. Sans code, la promesse retombe tout de suite. */
+dexcomCallback().then(() => loadGlucose());
 scheduleReminder();
 generateRetro(false);
 
@@ -6441,6 +6738,7 @@ if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   normalize, clamp, round, esc, fmtQ, igClass, igLabel, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, collectResponses, mealResponse, matchShoppingItem,
+  mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL
 });
 

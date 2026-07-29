@@ -12,9 +12,10 @@ Ordre = priorité décroissante.
 **Pourquoi.** L'app sait ce que tu manges, pas ce que ça produit. Sans la courbe réelle,
 tout reste une estimation.
 
-**État.** Nightscout est branché : connexion dans les Réglages, courbe 24 h sur l'accueil,
-réponse des 3 h sous chaque repas, et table d'IG personnelle. Restent **LibreLinkUp** et
-**Dexcom**, qui demandent tous deux la route `/cgm` du Worker décrite plus bas.
+**Fait.** Les trois fournisseurs sont branchés : Nightscout en direct depuis le navigateur,
+LibreLinkUp et Dexcom par la route `/cgm` du Worker. Courbe 24 h sur l'accueil, réponse des
+3 h sous chaque repas, table d'IG personnelle. La courbe s'accumule localement, parce que
+LibreLinkUp ne rend que les 12 dernières heures.
 
 **Sources.** Dexcom a une API publique (OAuth 2, sandbox disponible).
 Abbott expose LibreLinkUp, non officiel mais stable : `POST /llu/auth/login`

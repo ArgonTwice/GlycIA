@@ -7,5 +7,14 @@ compatibility_date = "2026-01-01"
 [vars]
 ALLOWED_ORIGIN = "https://argontwice.github.io"
 
-# La clé n'est PAS ici. Elle se pose en secret :
+# Dexcom : "https://sandbox-api.dexcom.com" pour tester avec un compte fictif,
+# "https://api.dexcom.eu" pour un compte européen. Facultatif, défaut = api.dexcom.com.
+# DEXCOM_BASE = "https://sandbox-api.dexcom.com"
+
+# Aucune clé n'est ici. Elles se posent en secrets :
 #   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put DEXCOM_CLIENT_ID       # facultatif, pour la route /cgm
+#   npx wrangler secret put DEXCOM_CLIENT_SECRET   # idem
+#
+# LibreLinkUp ne demande aucun secret : les identifiants transitent par le Worker
+# à la connexion, et seul un jeton de session revient au navigateur.
