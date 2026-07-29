@@ -36,6 +36,8 @@ Réglages → Pages → Source : **GitHub Actions**. Puis `https://argontwice.gi
 
 Sur mobile, « Ajouter à l'écran d'accueil » installe l'app en PWA : plein écran, et elle fonctionne hors ligne.
 
+Sur Android, le bouton retour du système ferme un écran ouvert au lieu de quitter l'app : une modale d'abord, puis l'onglet en cours, et seulement ensuite l'app elle-même. Une exception assumée : en mode hypo, il ne fait rien — on en sort par un appui long de 2 secondes, et ce n'est pas le moment de sortir par accident.
+
 ### En local
 ```bash
 git clone https://github.com/ArgonTwice/GlycIA.git

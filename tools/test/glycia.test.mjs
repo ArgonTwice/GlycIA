@@ -3,13 +3,14 @@
    Priorité aux régressions déjà survenues : elles sont annotées. */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import api from './harness.mjs';
+import api, { navigateur } from './harness.mjs';
 
 const {
   normalize, clamp, round, fmtQ, igLabel, igClass, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, mealResponse, matchShoppingItem, gluPath,
   migrateIgPerso, IG_ORIG,
+  navStack, pushNav, closeNav, navTab, go, curTab,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, toGl, fmtDur, IGP, state, ALL
@@ -284,6 +285,99 @@ describe('tracé de la courbe', () => {
   test('un point isolé se dessine sans planter', () => {
     assert.equal((gluPath([{ t: new Date(), mgdl: 100 }], X, Y).match(/M/g) || []).length, 1);
     assert.equal(gluPath([], X, Y), '');
+  });
+});
+
+/* Sur Android, le bouton retour ferme la PWA quand il n'a rien a defaire.
+   Une modale ouverte, un appui reflexe, et on est dehors avec le repas en
+   cours de saisie. C'est le geste le plus courant du systeme. */
+describe('bouton retour', () => {
+  const remise = () => { navStack.length = 0; navigateur.reset(); go('home', true); };
+
+  test('quitter l’accueil pose une entree, retour y ramene', () => {
+    remise();
+    go('food');
+    assert.equal(curTab(), 'food');
+    assert.equal(navigateur.profondeur(), 1, 'une entree posee');
+    navigateur.retour();
+    assert.equal(curTab(), 'home', 'retour ramene a l’accueil');
+    assert.equal(navStack.length, 0);
+  });
+
+  /* Convention Android : retour ramene a l'ecran de depart, il ne rejoue pas
+     tout le parcours entre onglets. */
+  test('traverser trois onglets ne pose qu’une entree', () => {
+    remise();
+    go('food'); go('recipe'); go('tools');
+    assert.equal(navigateur.profondeur(), 1, 'un seul cran, pas trois');
+    navigateur.retour();
+    assert.equal(curTab(), 'home');
+  });
+
+  test('revenir a l’accueil par la barre neutralise l’entree', () => {
+    remise();
+    go('food');
+    go('home');
+    assert.equal(curTab(), 'home');
+    /* L'entree du navigateur reste — on ne peut pas la retirer sans reculer —
+       mais elle ne doit plus rien defaire, et un seul appui doit suffire a
+       sortir de l'app. */
+    navigateur.retour();
+    assert.equal(curTab(), 'home');
+    assert.equal(navStack.length, 0, 'la pile de l’app est vide : le systeme reprend la main');
+  });
+
+  /* Le parcours qui a fait rejeter history.back() : liste de courses vers
+     scanner, fiche produit vers onglet aliments. Un retour asynchrone
+     retomberait sur l'ecran qui vient de s'ouvrir et le refermerait. */
+  test('fermer un ecran pour en ouvrir un autre n’annule pas le second', () => {
+    remise();
+    go('food');                       // premier ecran
+    go('home');                       // ferme : entree morte au sommet
+    go('recipe');                     // ouvre dans la foulee
+    assert.equal(curTab(), 'recipe', 'le second ecran reste ouvert');
+    assert.equal(navigateur.profondeur(), 1, 'et l’entree morte a ete recyclee');
+    navigateur.retour();
+    assert.equal(curTab(), 'home', 'un seul appui ramene a l’accueil');
+  });
+
+  test('ouvrir et fermer en boucle ne fait pas gonfler l’historique', () => {
+    remise();
+    for (let i = 0; i < 20; i++) { go('food'); go('home'); }
+    assert.equal(navigateur.profondeur(), 1,
+      'sinon vingt allers-retours demanderaient vingt appuis pour sortir');
+  });
+
+  /* Sans pile a nous, retour appartient au systeme : c'est lui qui ferme
+     l'app, et l'app ne doit pas l'en empecher. */
+  test('a l’accueil, retour n’est pas intercepte', () => {
+    remise();
+    assert.equal(navigateur.profondeur(), 0);
+    navigateur.retour();
+    assert.equal(curTab(), 'home');
+    assert.equal(navStack.length, 0);
+  });
+
+  /* Un ecran ferme par l'interface alors qu'il n'etait pas au sommet laisse
+     une entree derriere lui. Elle doit s'absorber toute seule, sans faire
+     perdre un appui a l'utilisateur ni bloquer la sortie. */
+  test('une entree morte est absorbee sans rien afficher', () => {
+    remise();
+    go('food');
+    pushNav({ k: 'modal', v: 'm-jamais-ouverte' });
+    closeNav(navStack[navStack.length - 1]);   // ferme a la main, entree laissee derriere
+    assert.equal(navigateur.profondeur(), 2);
+    navigateur.retour();                        // un seul appui
+    assert.equal(curTab(), 'home', 'le retour traverse l’entree morte d’un coup');
+    assert.equal(navStack.length, 0, 'et la pile se vide entierement');
+  });
+
+  test('la pile de l’app suit celle du navigateur', () => {
+    remise();
+    go('food');
+    assert.equal(navStack.length, navigateur.profondeur());
+    navigateur.retour();
+    assert.equal(navStack.length, navigateur.profondeur());
   });
 });
 

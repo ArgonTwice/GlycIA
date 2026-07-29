@@ -396,9 +396,94 @@ function toast(msg) {
 }
 
 /* ==========================================================================
-   6. NAVIGATION
+   6. NAVIGATION — onglets et bouton retour du système
    ========================================================================== */
-function go(tab) {
+/* ---------- Bouton retour Android ----------
+   Sur Android, le bouton retour ferme la PWA quand il n'a rien à défaire.
+   Dans une app d'un seul écran, ça donne : ouvrir une modale, appuyer sur
+   retour par réflexe, se retrouver dehors — et le repas en cours de saisie
+   avec. C'est le geste le plus courant du système, et le plus coûteux ici.
+
+   On empile donc une entrée d'historique par écran ouvert, et on la dépile
+   au retour. La pile de l'app double celle du navigateur : c'est elle qui
+   dit quoi défaire, plutôt que de le deviner à partir du DOM.
+
+   Sur iOS et sur ordinateur, rien ne change : aucune entrée n'est consommée
+   tant que personne ne revient en arrière. */
+const navStack = [];
+
+/* Une seule entrée pour « je ne suis plus à l'accueil », quel que soit le
+   nombre d'onglets traversés : retour ramène à l'accueil, comme le veut la
+   convention Android, plutôt que de rejouer tout le parcours. */
+const navTab = { k: 'tab' };
+
+function pushNav(entry) {
+  /* Une entrée laissée par un écran déjà fermé se recycle plutôt que de
+     s'empiler : sans ça, une heure d'usage laisserait des dizaines d'entrées
+     mortes derrière elle, et le bouton retour mettrait autant d'appuis à les
+     traverser. La pile reste ainsi de la taille de ce qui est ouvert. */
+  if ((navStack[navStack.length - 1] || {}).k === 'morte') {
+    navStack[navStack.length - 1] = entry;
+    history.replaceState({ glycia: navStack.length }, '');
+    return;
+  }
+  navStack.push(entry);
+  history.pushState({ glycia: navStack.length }, '');
+}
+
+/* Fermer par l'interface ne fait PAS reculer l'historique. C'est tentant —
+   ça garderait les deux piles alignées — mais history.back() est asynchrone,
+   et plusieurs parcours ferment un écran pour en ouvrir un autre dans la
+   foulée : liste de courses vers scanner, fiche produit vers onglet aliments.
+   Le retour différé retomberait alors sur l'écran qui vient de s'ouvrir et le
+   refermerait aussitôt.
+
+   L'entrée est donc marquée morte et laissée en place. Le prochain appui sur
+   retour l'absorbe sans rien afficher et continue sa route dans le même
+   geste : de l'extérieur, ça ne se voit pas. */
+function closeNav(entry) {
+  const i = navStack.lastIndexOf(entry);
+  if (i >= 0) navStack[i] = { k: 'morte' };
+}
+
+/* Une entrée morte, ou qui désigne un écran déjà fermé, est absorbée : on
+   recule d'un cran de plus, sans jamais dépasser la pile — au-delà, c'est au
+   système de fermer l'app, et c'est bien ce qu'on veut. */
+function absorbeNav() {
+  if (navStack.length) history.back();
+}
+
+window.addEventListener('popstate', () => {
+  const entry = navStack.pop();
+  if (!entry) return;              // plus rien à nous : le système reprend la main
+  if (entry.k === 'morte') { absorbeNav(); return; }
+
+  if (entry.k === 'modal') {
+    const m = $('#' + entry.v);
+    if (!m || !m.classList.contains('on')) { absorbeNav(); return; }
+    /* Le mode hypo se quitte par un appui long de 2 s, exprès : mains qui
+       tremblent, vue brouillée, et une sortie accidentelle coûte cher. Le
+       bouton retour ne doit pas court-circuiter cette garde — on repose
+       l'entrée et on ne fait rien. */
+    if (m.id === 'm-sos' && hypoMode) { pushNav(entry); return; }
+    closeModal(m, true);
+    return;
+  }
+  if (entry.k === 'tab') {
+    if (curTab === 'home') { absorbeNav(); return; }
+    go('home', true);
+  }
+});
+
+let curTab = 'home';
+/* `retour` : l'appel vient du bouton système, l'entrée d'historique est
+   déjà consommée, il ne faut pas y toucher. */
+function go(tab, retour) {
+  if (!retour) {
+    if (tab === 'home') closeNav(navTab);
+    else if (curTab === 'home') pushNav(navTab);
+  }
+  curTab = tab;
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + tab));
   $$('.nav-btn').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -412,12 +497,22 @@ let lastFocus = null;
 function openModal(id) {
   lastFocus = document.activeElement;
   const m = $('#m-' + id);
+  if (m.classList.contains('on')) return;      // déjà ouverte : pas de doublon dans l'historique
   m.classList.add('on');
+  pushNav({ k: 'modal', v: m.id });
   document.body.style.overflow = 'hidden';
   const f = m.querySelector('button, input, textarea');
   if (f) setTimeout(() => f.focus(), 120);
 }
-function closeModal(m) {
+
+/* `retour` : fermeture demandée par le bouton système. L'entrée d'historique
+   vient d'être dépilée par popstate, il n'y a plus rien à marquer. */
+function closeModal(m, retour) {
+  if (!m) return;
+  if (!retour) {
+    const e = navStack.find(x => x.k === 'modal' && x.v === m.id);
+    if (e) closeNav(e);
+  }
   if (m.id === 'm-shoot') stopCam();
   if (m.id === 'm-scan' && typeof stopBd === 'function') stopBd();
   if (m.id === 'm-sos' && typeof exitHypo === 'function') exitHypo();
@@ -5069,6 +5164,7 @@ if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
   igKey, personalIg, collectResponses, mealResponse, matchShoppingItem, gluPath,
   migrateIgPerso, IG_ORIG,
+  navStack, pushNav, closeNav, navTab, go, curTab: () => curTab,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL

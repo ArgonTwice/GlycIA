@@ -55,9 +55,39 @@ Object.defineProperty(globalThis, 'navigator', {
            mediaDevices: {}, geolocation: {}, language: 'fr-FR' }
 });
 globalThis.location = { search: '', pathname: '/', href: 'http://localhost/' };
-globalThis.history = { replaceState() {} };
-globalThis.addEventListener = () => {};
+
+/* Historique et écouteurs pour de vrai : le bouton retour d'Android se teste
+   en poussant des entrées et en revenant dessus. Le navigateur diffère sur un
+   point — il déclenche popstate de façon asynchrone — mais le déroulement
+   synchrone teste la même mécanique, y compris les retours en cascade. */
+const ecouteurs = {};
+globalThis.addEventListener = (type, fn) => { (ecouteurs[type] = ecouteurs[type] || []).push(fn); };
+
+const pile = [{ state: null }];
+function allerA(n) {
+  const cible = pile.length - 1 + n;
+  if (cible < 0) return;                       // le système fermerait l'app
+  pile.length = cible + 1;
+  (ecouteurs.popstate || []).forEach(fn => fn({ state: pile[cible].state }));
+}
+globalThis.history = {
+  get length() { return pile.length; },
+  get state() { return pile[pile.length - 1].state; },
+  pushState(state) { pile.push({ state }); },
+  replaceState(state) { pile[pile.length - 1] = { state }; },
+  back() { allerA(-1); },
+  forward() { allerA(1); },
+  go(n) { allerA(n | 0); }
+};
+
+/* Ce que les tests pilotent : appuyer sur retour, et voir où on en est. */
+export const navigateur = {
+  retour: () => allerA(-1),
+  profondeur: () => pile.length - 1,
+  reset: () => { pile.length = 1; }
+};
 globalThis.matchMedia = () => ({ matches: false, addEventListener() {} });
+globalThis.scrollTo = () => {};
 globalThis.requestAnimationFrame = cb => cb(0);
 globalThis.caches = { open: async () => ({ match: async () => null, delete: async () => {} }), keys: async () => [] };
 
