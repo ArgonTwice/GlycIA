@@ -61,15 +61,29 @@ const SRC = {
    - pain pita 57 → 68. Le 57 venait de la même table antérieure. La seule
      entrée de pita blanc dans la table 2008 est à 68.
 
+   À TRANCHER — quatre valeurs dont les entrées retrouvées dans la table ne
+   concordent pas avec ce qu'on affiche. Elles ne sont pas corrigées : les
+   moyennes correspondantes n'ont pas été localisées dans le texte extrait, et
+   changer un chiffre sur une lecture partielle serait refaire l'erreur qu'on
+   vient de corriger deux fois.
+
+     Pomme      36  — entrée trouvée : Golden Delicious (Canada) 39
+     Orange     43  — entrées trouvées : 33 (Afrique du Sud), 40 (Canada)
+     Ananas     59  — entrée trouvée : cru (Australie) 66
+     Banane     51  — entrées trouvées : 47 (Australie), 62 (Canada), 70 (Afr. du Sud)
+     Lentilles vertes 32 — entrée trouvée : vertes sèches bouillies (Australie) 37
+
    `node tools/ig-ref.mjs` donne le compte. Le reste est un chantier ouvert,
    pas un état final. */
 
 /* [nom dans GlycIA, IG, source, aliment mesuré tel qu'il est nommé dans la table, recoupé ?]
    Le quatrième champ est le rapprochement lui-même : c'est lui qu'on vérifie.
-   Volontairement absents : le lait, le chocolat noir, la banane très mûre et la
-   courge — leurs valeurs publiées divergent trop d'une étude à l'autre pour
-   qu'une moyenne veuille dire quelque chose. Mieux vaut un IG indicatif annoncé
-   comme tel qu'un chiffre tracé qui ne tient pas. */
+   Volontairement absents : le lait, le chocolat noir, la banane très mûre, la
+   courge et la patate douce — leurs valeurs publiées divergent trop d'une étude
+   à l'autre pour qu'une moyenne veuille dire quelque chose. La patate douce a
+   rejoint cette liste après vérification : la table 2008 en donne quatre
+   entrées, de 44 à 77, sans ligne de moyenne. Mieux vaut un IG indicatif
+   annoncé comme tel qu'un chiffre tracé qui ne tient pas. */
 const REF = [
   // Pains et petit-déjeuner
   ['Pain de mie',              75, 'at08', 'White wheat flour bread', 'x'],
@@ -102,7 +116,6 @@ const REF = [
   ['Purée de pommes de terre', 87, 'at08', 'Instant mashed potato'],
   ['Frites maison',            63, 'at08', 'French fries'],
   ['Frites fast-food',         63, 'at08', 'French fries'],
-  ['Patate douce cuite',       63, 'at08', 'Sweet potato, boiled'],
   ['Maïs doux en boîte',       52, 'at08', 'Sweet corn', 'x'],
   ['Chips',                    56, 'at08', 'Potato crisps', 'x'],
 
@@ -111,7 +124,7 @@ const REF = [
   ['Lentilles corail cuites',  26, 'at08', 'Red lentils', 'x'],
   ['Pois chiches cuits',       28, 'at08', 'Chickpeas', 'x'],
   ['Haricots rouges cuits',    24, 'at08', 'Kidney beans'],
-  ['Haricots blancs cuits',    31, 'at08', 'Navy (haricot) beans'],
+  ['Haricots blancs cuits',    31, 'at08', 'Haricot / Navy beans, boiled (Canada)', 'x'],
   ['Pois cassés',              25, 'at08', 'Split peas', 'x'],
   ['Soja jaune cuit',          16, 'at08', 'Soya beans'],
   ['Petits pois',              51, 'at08', 'Green peas'],
@@ -123,17 +136,17 @@ const REF = [
   ['Banane',                   51, 'at08', 'Banana, raw'],
   ['Orange',                   43, 'at08', 'Orange, raw'],
   ['Pamplemousse',             25, 'at08', 'Grapefruit, raw'],
-  ['Fraises',                  40, 'at08', 'Strawberries, fresh'],
+  ['Fraises',                  40, 'at08', 'Strawberries, fresh, raw (Australia)', 'x'],
   ['Raisin',                   46, 'at08', 'Grapes, raw'],
   ['Pastèque',                 76, 'at08', 'Watermelon, raw', 'x'],
-  ['Melon',                    65, 'at08', 'Cantaloupe, raw'],
+  ['Melon',                    65, 'at08', 'Rockmelon / Cantaloupe, raw (Australia)', 'x'],
   ['Ananas frais',             59, 'at08', 'Pineapple, raw'],
-  ['Mangue',                   51, 'at08', 'Mango, raw'],
-  ['Kiwi',                     58, 'at08', 'Kiwifruit, raw'],
+  ['Mangue',                   51, 'at08', 'Mango (Mangifera indica) (Australia)', 'x'],
+  ['Kiwi',                     58, 'at08', 'Kiwi fruit (Australia)', 'x'],
   ['Pêche',                    42, 'at08', 'Peach, raw'],
-  ['Abricot',                  34, 'at08', 'Apricot, raw'],
+  ['Abricot',                  34, 'at08', 'Apricots, raw, NS (Australia)', 'x'],
   ['Dattes séchées',           42, 'at08', 'Dates, dried', 'x'],
-  ['Raisins secs',             64, 'at08', 'Raisins'],
+  ['Raisins secs',             64, 'at08', 'Raisins (Canada)', 'x'],
   ['Pruneaux',                 29, 'at08', 'Prunes, pitted', 'x'],
 
   // Légumes
