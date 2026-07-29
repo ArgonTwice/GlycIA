@@ -95,6 +95,9 @@ describe('Open Food Facts', () => {
   });
 });
 
+/* gpReason rend des { t: motif court, p: explication du mecanisme }. */
+const titres = m => m.map(x => x.t).join(' | ');
+
 describe('gastroparésie — classement', () => {
   const f = (n, cat = 'Sucré, desserts & goûter', c = 20, kcal = 200, lip) =>
     ({ n, cat, c, kcal, lip });
@@ -102,19 +105,19 @@ describe('gastroparésie — classement', () => {
   /* Régressions : ces motifs matchaient en plein mot. */
   test('« cola » ne doit pas matcher « chocolat »', () => {
     const r = gpReason(f('Chocolat noir'));
-    assert.ok(!r.some(x => /Gaz ou alcool/.test(x)), r.join(' | '));
+    assert.ok(!r.some(x => /Gaz ou alcool/.test(x.t)), titres(r));
   });
   test('« moule » ne doit pas matcher « semoule »', () => {
     const r = gpReason(f('Semoule de couscous', 'Féculents, céréales & légumineuses'));
-    assert.ok(!r.some(x => /Chair ferme/.test(x)), r.join(' | '));
+    assert.ok(!r.some(x => /Chair ferme/.test(x.t)), titres(r));
   });
   test('« confit » ne doit pas matcher « confiture »', () => {
     const r = gpReason(f('Confiture'));
-    assert.ok(!r.some(x => /Charcuterie/.test(x)), r.join(' | '));
+    assert.ok(!r.some(x => /Charcuterie/.test(x.t)), titres(r));
   });
   test('« mais » ne doit pas matcher « maison »', () => {
     const r = gpReason(f('Jus pressé maison', 'Boissons', 11, 45));
-    assert.ok(!r.some(x => /Céréales complètes/.test(x)), r.join(' | '));
+    assert.ok(!r.some(x => /Céréales complètes/.test(x.t)), titres(r));
   });
 
   test('les vrais cas restent classés à éviter', () => {
@@ -130,12 +133,20 @@ describe('gastroparésie — classement', () => {
   test('chaque niveau donne au moins une raison non vide', () => {
     for (const nom of ['Chorizo', 'Purée de carotte', 'Riz blanc', 'Lentilles', 'Kiwi']) {
       const r = gpReason(f(nom));
-      assert.ok(r.length > 0 && r.every(x => typeof x === 'string' && x.length > 10), nom);
+      assert.ok(r.length > 0 && r.every(x => typeof x.t === 'string' && x.t.length > 10), nom);
     }
   });
   test('deux freins cumulés donnent deux raisons', () => {
     const r = gpReason(f('Muesli aux noix', 'Petit-déjeuner & tartines', 60, 450));
-    assert.ok(r.length >= 2, r.join(' | '));
+    assert.ok(r.length >= 2, titres(r));
+  });
+
+  /* Un classement qu'on ne peut pas contester n'est qu'une interdiction de
+     plus. Chaque aliment ecarte doit pouvoir dire quel frein lui est
+     reproche, et pourquoi ce frein compte avec un estomac lent. */
+  test('tout aliment ecarte explique le frein en cause', () => {
+    const sansExplication = ALL.filter(x => gpLevel(x) === 3 && !gpReason(x).some(m => m.p && m.p.length > 40));
+    assert.deepEqual(sansExplication.map(x => x.n), []);
   });
 });
 
@@ -156,7 +167,7 @@ describe('gastroparésie — lipides', () => {
   /* Régression : le whisky était crédité de 21 g de lipides par l'estimation */
   test('la provenance du chiffre est indiquée', () => {
     const r = gpReason({ n: 'Test gras', cat: 'Sauces, matières grasses & apéro', c: 0, kcal: 400, lip: 40 });
-    assert.ok(r.some(x => /Ciqual/.test(x)), r.join(' | '));
+    assert.ok(r.some(x => /Ciqual/.test(x.t)), titres(r));
   });
 });
 
@@ -164,11 +175,11 @@ describe('gastroparésie — recettes', () => {
   const r = (title, ing, ph) => ({ title, ing: ing.map(x => [x]), ph });
   test('une recette du répertoire est bien tolérée', () => {
     assert.equal(gpRecipeLevel(r('Velouté', ['courge'], 2)), 1);
-    assert.ok(/répertoire/.test(gpRecipeReason(r('Velouté', ['courge'], 2))[0]));
+    assert.ok(/répertoire/.test(gpRecipeReason(r('Velouté', ['courge'], 2))[0].t));
   });
   test('les ingrédients problématiques sont nommés', () => {
     const raisons = gpRecipeReason(r('Poêlée de chou et lardons', ['chou vert', 'lardons fumés']));
-    assert.ok(raisons.length >= 2, raisons.join(' | '));
+    assert.ok(raisons.length >= 2, titres(raisons));
   });
 });
 
@@ -406,7 +417,7 @@ describe('pertinence de la recherche', () => {
    classes ainsi. */
 describe('gastroparesie — appariement aux reperes', () => {
   const niveau = n => { const f = ALL.find(x => x.n === n); assert.ok(f, n); return gpLevel(f); };
-  const motif = n => gpReason(ALL.find(x => x.n === n)).join(' ');
+  const motif = n => gpReason(ALL.find(x => x.n === n)).map(r => r.t).join(' ');
 
   test('un aliment frais ne prend pas le niveau de sa version sechee', () => {
     assert.equal(niveau('Abricot'), 2, 'un abricot frais n’est pas un fruit sec');
@@ -443,10 +454,18 @@ describe('gastroparesie — appariement aux reperes', () => {
    qui pouvaient se contredire. Un roti de boeuf sortait « a eviter » au motif
    d'etre un « plat compose », une baguette blanche au motif du son. */
 describe('gastroparesie — le motif suit le classement', () => {
-  const motif = n => gpReason(ALL.find(x => x.n === n)).join(' ');
+  const motif = n => gpReason(ALL.find(x => x.n === n)).map(r => r.t).join(' ');
 
-  test('un repere explicite est cite tel quel', () => {
-    assert.match(motif('Rôti de bœuf'), /Steak, rôti, viande en morceaux/);
+  /* Quand le nom de l'aliment ne dit rien, le libelle du repere est interroge
+     a son tour : « Steak, roti, viande en morceaux » nomme un frein que
+     « Roti de boeuf » seul ne laissait pas voir. On cite le repere seulement
+     quand meme lui ne designe aucun mecanisme. */
+  test('un roti explique le frein, pas seulement d’ou vient son classement', () => {
+    assert.match(motif('Rôti de bœuf'), /fibres musculaires/);
+    assert.doesNotMatch(motif('Rôti de bœuf'), /Plat composé/);
+  });
+
+  test('a defaut de mecanisme, le repere est cite tel quel', () => {
     assert.match(motif('Baguette blanche'), /Pain frais, baguette/);
   });
 
@@ -477,13 +496,13 @@ describe('gastroparesie — le motif suit le classement', () => {
      par les memes mots, d'ou la phrase entiere dans le motif. */
   test('aucun aliment ne tombe sur le repli global', () => {
     const REPLI = 'Plat composé, souvent gras ou fibreux, long à réduire en bouillie.';
-    const orphelins = ALL.filter(f => gpLevel(f) === 3 && gpReason(f).includes(REPLI));
+    const orphelins = ALL.filter(f => gpLevel(f) === 3 && gpReason(f).some(r => r.t === REPLI));
     assert.deepEqual(orphelins.map(f => f.n), []);
   });
 
   /* Tout aliment classe doit pouvoir dire pourquoi, et jamais rester muet. */
   test('chaque classement donne au moins une raison', () => {
-    const muets = ALL.filter(f => { const r = gpReason(f); return !r.length || !r[0]; });
+    const muets = ALL.filter(f => { const r = gpReason(f); return !r.length || !r[0] || !r[0].t; });
     assert.deepEqual(muets.map(f => f.n), []);
   });
 });

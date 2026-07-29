@@ -517,6 +517,18 @@ body.gp-on .gp-only{display:inline-flex}
 .gp-why b{display:block;font-size:12px;font-weight:700;margin-bottom:4px}
 .gp-why p{font-size:12.5px;line-height:1.45;color:var(--ink-soft)}
 .gp-why p+p{margin-top:5px}
+/* Le motif est lisible d'un coup d'œil, l'explication du mécanisme attend
+   qu'on la demande : elle est longue, et on ne la relit pas à chaque fiche. */
+.gp-det{margin-top:5px}
+.gp-det+.gp-det{margin-top:7px}
+.gp-det summary{
+  font-size:12.5px;line-height:1.45;color:var(--ink-soft);cursor:pointer;
+  list-style:none;display:flex;gap:6px;align-items:baseline;
+}
+.gp-det summary::-webkit-details-marker{display:none}
+.gp-det summary::before{content:'▸';font-size:10px;flex:none;transition:transform .15s}
+.gp-det[open] summary::before{transform:rotate(90deg)}
+.gp-det p{margin-top:6px;padding-left:14px;font-size:12.5px;line-height:1.5;color:var(--ink-soft)}
 .gp-why.ok{background:rgba(129,199,132,.12);border-color:var(--sage)}
 .gp-why.ok b{color:var(--sage-deep)}
 .gp-why.mid{background:rgba(255,183,77,.14);border-color:#FFB74D}

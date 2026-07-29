@@ -7,7 +7,7 @@
 
 /* Données séparées : chargées en parallèle du script, mises en cache par le SW */
 const DB = await (await fetch(new URL('./db.json', import.meta.url))).json();
-const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, IG_SRC, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT, GE_PHASES, GE_TIPS, GE_FOODS, GE_RECIPES, GE_ALERT, SPORT_PHASES, SPORT_TIPS, SPORT_FOODS, SPORT_RECIPES, SPORT_ALERT } = DB;
+const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, IG_SRC, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, GP_MECA, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT, GE_PHASES, GE_TIPS, GE_FOODS, GE_RECIPES, GE_ALERT, SPORT_PHASES, SPORT_TIPS, SPORT_FOODS, SPORT_RECIPES, SPORT_ALERT } = DB;
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1222,7 +1222,7 @@ function renderItems() {
         <div class="item-name">${esc(f.n)}${(() => {
           if (!state.gp) return '';
           const probe = { n:f.n, cat:'Plats préparés & cuisine maison', c:f.carb, kcal:0 };
-          return gpLevel(probe) === 3 ? `<span class="gp-badge no" title="${esc(gpReason(probe).join(' '))}">⛔</span>` : '';
+          return gpLevel(probe) === 3 ? `<span class="gp-badge no" title="${esc(gpReason(probe).map(r => r.t).join(' '))}">⛔</span>` : '';
         })()}</div>
         <div class="item-meta">≈ ${grams} g · ${c} g de glucides${f.carb ? ' · IG ' + f.ig : ''}</div>
       </div>
@@ -1302,7 +1302,7 @@ function renderRecipe(r, matched) {
         <h3 style="margin-top:8px">${esc(r.title)}</h3>
         ${state.gp ? `<div class="gp-why ${GP_MARK[gpRecipeLevel(r)][0]}" style="margin:10px 0">
           <b>${GP_MARK[gpRecipeLevel(r)][1]} ${GP_MARK[gpRecipeLevel(r)][2]} avec un estomac lent</b>
-          ${gpRecipeReason(r).map(x => `<p>${esc(x)}</p>`).join('')}
+          ${gpWhyHtml(gpRecipeReason(r))}
         </div>` : ''}
         <p style="font-size:14px;color:var(--ink-soft);line-height:1.45">${esc(r.note)}</p>
         <div class="chips">
@@ -2044,7 +2044,7 @@ function renderFoods(onlineMsg) {
       <button class="fhead" data-food="${esc(f.n)}">
         ${state.gp ? `<span class="gp-bar ${GP_MARK[gpLevel(f)][0]}"></span>` : ''}
         <span class="fe">${f.off ? '🌐' : (CAT_ICON[f.cat] || '🍽️')}</span>
-        <span class="fn"><b>${esc(f.n)}${state.gp ? `<span class="gp-badge ${GP_MARK[gpLevel(f)][0]}" title="${esc(gpReason(f).join(' '))}">${GP_MARK[gpLevel(f)][1]} ${GP_MARK[gpLevel(f)][2]}</span>` : ''}</b><span>${esc(f.pl)} · ${f.pw} g · ${igLabel(f.ig)}</span></span>
+        <span class="fn"><b>${esc(f.n)}${state.gp ? `<span class="gp-badge ${GP_MARK[gpLevel(f)][0]}" title="${esc(gpReason(f).map(r => r.t).join(' '))}">${GP_MARK[gpLevel(f)][1]} ${GP_MARK[gpLevel(f)][2]}</span>` : ''}</b><span>${esc(f.pl)} · ${f.pw} g · ${igLabel(f.ig)}</span></span>
         <span class="fc"><b>${round(f.c * f.pw / 100)}</b><span>g gluc.</span></span>
       </button>
       <div class="fdet">
@@ -2055,7 +2055,7 @@ function renderFoods(onlineMsg) {
         </div>
         ${state.gp ? `<div class="gp-why ${GP_MARK[gpLevel(f)][0]}">
           <b>${GP_MARK[gpLevel(f)][1]} ${GP_MARK[gpLevel(f)][2]} avec un estomac lent</b>
-          ${gpReason(f).map(r => `<p>${esc(r)}</p>`).join('')}
+          ${gpWhyHtml(gpReason(f))}
         </div>` : ''}
         <div class="fmeta">Pour 100 g : ${f.c} g de glucides · ${f.kcal} kcal &nbsp;|&nbsp; ici ${g} g · ${kcal} kcal</div>
         <div class="fsrc">${
@@ -4250,65 +4250,75 @@ function gpMot(nom, cle) {
   return false;
 }
 
-/* Chaque motif porte son explication. GP_RED et GP_GREEN sont dérivées de ces
-   tables : le classement affiché et la raison donnée ne peuvent pas diverger.
-   Les explications décrivent un mécanisme digestif, elles ne prescrivent rien. */
+/* Chaque motif désigne un mécanisme de GP_MECA, qui porte un titre court et
+   l'explication du frein. GP_RED et GP_GREEN sont dérivées de ces tables : le
+   classement affiché et la raison donnée ne peuvent pas diverger.
+
+   Les explications décrivent un fonctionnement digestif. Elles ne prescrivent
+   rien, ne fixent aucun seuil et ne disent à personne quoi manger : elles
+   donnent de quoi comprendre un classement, et donc de quoi le contester. */
+const meca = id => GP_MECA[id] || { t: id, p: '' };
+
 const GP_RED_WHY = [
   /* « baguette » est sortie d'ici : une baguette blanche n'a ni son ni
      céréales complètes, et la table de repères la classe déjà pour ce
      qu'elle est — du pain frais. */
   [/complet|cereale|granola|muesli|\bmais\b|pop-?corn|seigle|son d/,
-   'Céréales complètes et son : leurs fibres insolubles ne se délitent pas et peuvent s’agglomérer dans un estomac qui se vide lentement.'],
+   'fibres_dures'],
   [/graine|noix|amande|pistache|cajou|noisette|pecan|macadamia|cacahuete/,
-   'Oléagineux et graines : gras et fibreux à la fois, les deux freins réunis.'],
+   'lipides'],
   /* « sec » ne vaut ici que pour les légumes secs : le laisser seul classait
      « Vin blanc sec » et « Chèvre sec » parmi les légumes fibreux. */
   [/seche|legumes? secs?|cru$|crudite|chou|brocoli|poireau|celeri|fenouil|salade|artichaut|asperge/,
-   'Légume cru ou très fibreux : les fibres dures traversent l’estomac sans être réduites.'],
+   'legume_fibreux'],
   /* Le haricot vert se mange en gousse, pas en graine : ce n'est pas une
      légumineuse, et l'explication ci-dessous ne lui convient pas. */
   [/lentille|haricot(?!s? (?:vert|plat))|feve|legumineuse|pois chiche|petits pois|flageolet/,
-   'Légumineuses : l’enveloppe est riche en fibres, la digestion est lente et fermente.'],
+   'legumineuses'],
   [/frit|pane|nugget|chips|frite|beignet|churros|donut/,
-   'Friture ou panure : la graisse absorbée à la cuisson ralentit nettement la vidange.'],
+   'friture'],
   [/saucisse|chorizo|salami|saucisson|lardon|bacon|rillette|\bconfits?\b/,
-   'Charcuterie grasse : beaucoup de lipides, qui retardent le passage vers l’intestin.'],
+   'charcuterie'],
   /* « mure » au pluriel seulement : « Banane bien mûre » est un adjectif, et
      la baie ne se nomme qu'au pluriel dans la base. Les fruits secs entrent
      ici, au pluriel comme au singulier — c'est ainsi qu'ils sont nommés. */
   [/kiwi|raisin|cerise|ananas|mangue|agrume|orange|clementine|pamplemousse|figue|datte|pruneau|(?:fruits?|abricots?|raisins?) secs?|framboise|mures\b|groseille|myrtille|cassis/,
-   'Peaux, pépins ou fibres dures du fruit : ils restent entiers dans l’estomac.'],
+   'peaux_pepins'],
   [/gazeu|soda|\bcola|limonade|biere|alcool|^vin |whisky|vodka|rhum|pastis|champagne|cidre|mojito|spritz/,
-   'Gaz ou alcool : l’estomac se distend et se vide plus lentement.'],
-  [/kebab|tacos|burger|pizza|steak|entrecote|rumsteck|cordon bleu|brochette/,
-   'Plat dense et gras, avec des fibres musculaires longues à réduire.'],
+   'gaz'],
+  [/kebab|tacos|burger|pizza|steak|entrecote|rumsteck|cordon bleu|brochette|\broti\b|viande en morceaux/,
+   'plat_dense'],
   [/poulpe|calamar|seiche|\bmoule|huitre|crevette/,
-   'Chair ferme et élastique, difficile à réduire en bouillie gastrique.'],
+   'chair_ferme'],
   [/chewing/,
-   'Mâché longuement, il fait avaler de l’air et n’est pas digéré.']
+   'chewing']
 ];
 const GP_RED = new RegExp(GP_RED_WHY.map(([re]) => re.source).join('|'));
 
 const GP_GREEN_WHY = [
   [/puree|veloute|soupe|bouillon|compote|mixe|lisse|pot au feu/,
-   'Texture lisse ou très cuite : elle quitte l’estomac sans avoir à être broyée.'],
+   'texture_lisse'],
   [/yaourt|fromage blanc|skyr|petit-suisse|faisselle|flan|creme dessert|riz au lait|semoule/,
-   'Laitage ou dessert lisse : semi-liquide, il passe presque comme une boisson.'],
+   'laitage_lisse'],
   [/banane|pain de mie|biscotte|boudoir|polenta|gnocchi|melon/,
-   'Féculent tendre ou fruit sans peau ni fibre dure : il se délite tout seul.'],
+   'feculent_tendre'],
   [/oeuf|œuf|omelette|cabillaud|colin|merlan|eglefin|sole|blanc de poulet|escalope de dinde|jambon blanc|jambon de dinde|tofu soyeux/,
-   'Protéine maigre et tendre : peu de gras, des fibres courtes.'],
+   'proteine_tendre'],
   [/^lait|sorbet|gelee|miel|sirop d|jus |the |infusion|^eau/,
-   'Liquide : il sort de l’estomac même quand la vidange des solides est ralentie.']
+   'liquide']
 ];
 const GP_GREEN = new RegExp(GP_GREEN_WHY.map(([re]) => re.source).join('|'));
 
 /* Ce que la catégorie seule laisse supposer, quand aucun motif ne ressort */
+/* [message propre à la catégorie, mécanisme qui l'explique]. Sans le second
+   champ, ces aliments — les 200 plats de chaîne et de terroir — recevaient un
+   message de catégorie et rien de plus : ils étaient les seuls à ne pas
+   pouvoir dire quel frein leur était reproché. */
 const GP_CAT_WHY = {
-  'Fast-food & sandwichs': 'Plat de restauration rapide : gras et dense, deux facteurs qui ralentissent la vidange.',
-  'Sauces, matières grasses & apéro': 'Surtout des matières grasses, le premier frein à la vidange de l’estomac.',
-  'Cuisine du monde': 'Plat composé, souvent gras ou relevé, difficile à anticiper avec un estomac lent.',
-  'Spécialités régionales françaises': 'Plat de terroir, généralement riche en gras et long à quitter l’estomac.'
+  'Fast-food & sandwichs': ['Plat de restauration rapide : gras et dense, deux facteurs qui ralentissent la vidange.', 'lipides'],
+  'Sauces, matières grasses & apéro': ['Surtout des matières grasses, le premier frein à la vidange de l’estomac.', 'lipides'],
+  'Cuisine du monde': ['Plat composé, souvent gras ou relevé, difficile à anticiper avec un estomac lent.', 'lipides'],
+  'Spécialités régionales françaises': ['Plat de terroir, généralement riche en gras et long à quitter l’estomac.', 'lipides']
 };
 
 const GP_CAT = {
@@ -4356,6 +4366,16 @@ function gpLevel(f) {
 }
 const GP_MARK = { 1:['ok','✅','Bien toléré'], 2:['mid','⚠️','Avec prudence'], 3:['no','⛔','À éviter'] };
 
+/* Le motif court reste visible, l'explication du mécanisme se déplie. Un
+   classement qu'on ne peut pas contester n'est qu'une interdiction de plus,
+   et c'est précisément ce que l'app refuse d'être : la fiche doit dire quel
+   frein est en cause, et pourquoi ce frein compte ici. */
+function gpWhyHtml(motifs) {
+  return motifs.map(m => m.p
+    ? `<details class="gp-det"><summary>${esc(m.t)}</summary><p>${esc(m.p)}</p></details>`
+    : `<p>${esc(m.t)}</p>`).join('');
+}
+
 /* On dit d'où vient le chiffre : mesuré par Ciqual, ou déduit des calories. */
 const lipLabel = (fat, f) => gpFatMesure(f)
   ? `${round(fat, 1)} g de lipides pour 100 g (Ciqual)`
@@ -4367,7 +4387,15 @@ function gpReason(f) {
   const k = normalize(f.n);
   const lv = gpLevel(f);
   /* plusieurs freins peuvent se cumuler : on en nomme deux au plus */
-  const reds = GP_RED_WHY.filter(([re]) => re.test(k)).slice(0, 2).map(([, why]) => why);
+  /* Le nom de l'aliment d'abord. S'il ne dit rien, on interroge le libellé du
+     repère qui a décidé du niveau : « Steak, rôti, viande en morceaux » nomme
+     un frein que « Rôti de bœuf » seul ne laissait pas voir. Sans ça, la fiche
+     renvoyait à la table sans expliquer quoi que ce soit. */
+  let reds = GP_RED_WHY.filter(([re]) => re.test(k)).slice(0, 2).map(([, id]) => meca(id));
+  if (!reds.length && f._gpsrc) {
+    const ks = normalize(f._gpsrc);
+    reds = GP_RED_WHY.filter(([re]) => re.test(ks)).slice(0, 2).map(([, id]) => meca(id));
+  }
   const green = GP_GREEN_WHY.find(([re]) => re.test(k));
   const fat = gpFat(f);
   const out = [...reds];
@@ -4377,22 +4405,41 @@ function gpReason(f) {
      côté et pouvaient se contredire : un rôti de bœuf sortait « à éviter »
      au motif d'être un « plat composé », alors que le repère disait
      simplement « Steak, rôti, viande en morceaux ». */
-  const repere = f._gpsrc ? `Repère de la table gastroparésie : « ${f._gpsrc} ».` : null;
+  const repere = f._gpsrc
+    ? { t: `Repère de la table gastroparésie : « ${f._gpsrc} ».`,
+        p: 'Ce classement vient de la table de repères de l’app, pas d’une règle calculée sur les valeurs de l’aliment.' }
+    : null;
+
+  /* Le chiffre de lipides est propre à l'aliment : il ne peut pas venir d'une
+     table de mécanismes, mais il porte le même frein, donc la même explication. */
+  const parGras = seuil => ({
+    t: `${lipLabel(fat, f)} : ${seuil}`,
+    p: meca('lipides').p
+  });
 
   if (lv === 3) {
-    if (fat > 20) out.push(`${lipLabel(fat, f)} : le gras est le premier frein à la vidange de l’estomac.`);
+    if (fat > 20) out.push(parGras('le gras est le premier frein à la vidange de l’estomac.'));
+    if (!out.length && GP_CAT_WHY[f.cat]) {
+      const [txt, id] = GP_CAT_WHY[f.cat];
+      out.push({ t: txt, p: meca(id).p });
+    }
     if (!out.length && repere) out.push(repere);
-    if (!out.length) out.push(GP_CAT_WHY[f.cat] || 'Plat composé, souvent gras ou fibreux, long à réduire en bouillie.');
-    if (green) out.push('Mixé ou allongé de bouillon, le même aliment passe souvent mieux.');
+    if (!out.length) out.push({
+      t: 'Plat composé, souvent gras ou fibreux, long à réduire en bouillie.',
+      p: 'Aucun frein précis n’a pu être nommé pour cet aliment : le classement vient de sa catégorie, pas de ce qu’il contient. À prendre pour ce que c’est — une approximation.'
+    });
+    if (green) out.push(meca('mixage'));
   } else if (lv === 1) {
     out.length = 0;
-    out.push(green ? green[1] : repere || 'Texture tendre et peu de gras : l’estomac n’a presque rien à broyer.');
+    out.push(green ? meca(green[1]) : repere || {
+      t: 'Texture tendre et peu de gras : l’estomac n’a presque rien à broyer.', p: meca('texture_lisse').p
+    });
   } else {
-    if (fat > 12) out.push(`${lipLabel(fat, f)} : de quoi ralentir un peu la vidange.`);
+    if (fat > 12) out.push(parGras('de quoi ralentir un peu la vidange.'));
     /* Un repère explicite vaut mieux qu'un motif attrapé au passage : la
        baguette blanche s'expliquait par les « céréales complètes et le son ». */
     if (repere) { out.length = 0; out.push(repere); }
-    if (!out.length) out.push('Ni texture lisse ni frein marqué : la tolérance dépendra surtout de la quantité et de la cuisson.');
+    if (!out.length) out.push(meca('quantite'));
   }
   return out;
 }
@@ -4440,13 +4487,13 @@ function gpRecipeLevel(r) {
 /* Pour une recette, la raison vient des ingrédients qui ont fait basculer
    le niveau. On en nomme deux au plus, pour rester lisible. */
 function gpRecipeReason(r) {
-  if (r.ph) return ['Recette du répertoire gastroparésie : texture et cuisson déjà adaptées.'];
+  if (r.ph) return [{ t: 'Recette du répertoire gastroparésie : texture et cuisson déjà adaptées.', p: '' }];
   const txt = normalize(r.title + ' ' + r.ing.map(x => x[0]).join(' '));
-  const out = GP_RED_WHY.filter(([re]) => re.test(txt)).map(([, why]) => why);
+  const out = GP_RED_WHY.filter(([re]) => re.test(txt)).map(([, id]) => meca(id));
   if (out.length) return out.slice(0, 2);
   return gpRecipeLevel(r) === 1
-    ? ['Ingrédients tendres ou liquides : rien qui demande un long broyage.']
-    : ['Aucun ingrédient franchement problématique, mais rien de spécialement lisse non plus.'];
+    ? [{ t: 'Ingrédients tendres ou liquides : rien qui demande un long broyage.', p: meca('texture_lisse').p }]
+    : [{ t: 'Aucun ingrédient franchement problématique, mais rien de spécialement lisse non plus.', p: meca('quantite').p }];
 }
 
 /* Les recettes gastro rejoignent le moteur de recherche quand le mode est actif */
