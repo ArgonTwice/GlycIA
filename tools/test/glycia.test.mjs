@@ -398,6 +398,96 @@ describe('pertinence de la recherche', () => {
   });
 });
 
+/* GP_FOODS est une table de conseils, ecrite pour etre lue. S'en servir telle
+   quelle pour apparier des aliments confondait deux formes : l'enumeration
+   (« Chou, brocoli, chou-fleur ») et la preparation (« Tomate pelee et
+   epepinee »). L'appariement se faisait dans les deux sens, si bien qu'un nom
+   court heritait du niveau d'une reference plus longue — 45 aliments etaient
+   classes ainsi. */
+describe('gastroparesie — appariement aux reperes', () => {
+  const niveau = n => { const f = ALL.find(x => x.n === n); assert.ok(f, n); return gpLevel(f); };
+  const motif = n => gpReason(ALL.find(x => x.n === n)).join(' ');
+
+  test('un aliment frais ne prend pas le niveau de sa version sechee', () => {
+    assert.equal(niveau('Abricot'), 2, 'un abricot frais n’est pas un fruit sec');
+    assert.equal(niveau('Abricots secs'), 3);
+    assert.equal(niveau('Prune'), 2);
+  });
+
+  /* « poireau ».includes(« poire ») : la poire heritait du poireau. */
+  test('un nom contenu dans un autre ne les confond pas', () => {
+    assert.equal(niveau('Poire'), 2);
+    assert.equal(niveau('Poireau'), 3);
+  });
+
+  test('les enumerations restent appariees terme a terme', () => {
+    for (const n of ['Brocoli', 'Chou-fleur', 'Petits pois', 'Pâtes complètes'])
+      assert.equal(niveau(n), 3, n);
+    assert.equal(niveau('Melon'), 1);
+  });
+
+  /* « ail » ne doit pas se reconnaitre au milieu d'« ailerons ». */
+  test('l’appariement se fait sur des mots entiers', () => {
+    const ail = ALL.find(x => x.n === 'Ail');
+    const ailerons = ALL.find(x => /^Ailerons/.test(x.n));
+    if (ail && ailerons) assert.notEqual(gpLevel(ailerons), 1);
+  });
+
+  test('une preparation ne deteint pas sur l’aliment nu', () => {
+    /* La table dit « Tomate pelee et epepinee », pas « Tomate ». */
+    assert.notEqual(niveau('Tomate'), 1);
+  });
+});
+
+/* Le niveau vient de la table de reperes, la raison des motifs : deux sources
+   qui pouvaient se contredire. Un roti de boeuf sortait « a eviter » au motif
+   d'etre un « plat compose », une baguette blanche au motif du son. */
+describe('gastroparesie — le motif suit le classement', () => {
+  const motif = n => gpReason(ALL.find(x => x.n === n)).join(' ');
+
+  test('un repere explicite est cite tel quel', () => {
+    assert.match(motif('Rôti de bœuf'), /Steak, rôti, viande en morceaux/);
+    assert.match(motif('Baguette blanche'), /Pain frais, baguette/);
+  });
+
+  test('une baguette blanche n’est plus expliquee par le son', () => {
+    assert.doesNotMatch(motif('Baguette blanche'), /son|complètes/i);
+  });
+
+  test('« bien mûre » n’est pas la baie', () => {
+    assert.equal(gpLevel(ALL.find(x => x.n === 'Banane bien mûre')), 1);
+    assert.equal(gpLevel(ALL.find(x => x.n === 'Mûres')), 3);
+  });
+
+  test('le haricot vert n’est pas une legumineuse', () => {
+    assert.doesNotMatch(motif('Haricots verts'), /Légumineuses/);
+    assert.match(motif('Haricots rouges cuits'), /Légumineuses/);
+  });
+
+  test('« sec » ne fait pas d’un vin un legume fibreux', () => {
+    assert.doesNotMatch(motif('Vin blanc sec'), /Légume cru/);
+    assert.match(motif('Vin blanc sec'), /alcool/i);
+  });
+
+  /* Le repli global — « Plat compose, souvent gras ou fibreux, long a reduire
+     en bouillie » — ne dit rien de l'aliment : c'est celui qu'un abricot frais
+     recevait. Depuis que le repere est cite, plus aucun aliment n'y tombe.
+     Les messages de categorie, eux, restent legitimes : ils nomment une
+     famille. Attention en relisant : le message « Cuisine du monde » commence
+     par les memes mots, d'ou la phrase entiere dans le motif. */
+  test('aucun aliment ne tombe sur le repli global', () => {
+    const REPLI = 'Plat composé, souvent gras ou fibreux, long à réduire en bouillie.';
+    const orphelins = ALL.filter(f => gpLevel(f) === 3 && gpReason(f).includes(REPLI));
+    assert.deepEqual(orphelins.map(f => f.n), []);
+  });
+
+  /* Tout aliment classe doit pouvoir dire pourquoi, et jamais rester muet. */
+  test('chaque classement donne au moins une raison', () => {
+    const muets = ALL.filter(f => { const r = gpReason(f); return !r.length || !r[0]; });
+    assert.deepEqual(muets.map(f => f.n), []);
+  });
+});
+
 describe('retirer un repas', () => {
   const repas = (id, nom) => ({ id, name: nom, time: new Date(), carbs: 30, ig: 50, icon: '🍽️' });
 

@@ -5991,26 +5991,75 @@ $('#btnScan').addEventListener('click', openScan);
    Un moteur de règles classe les 1000+ aliments et les recettes par tolérance,
    au lieu de cantonner l'info à une section.
    ========================================================================== */
-const GP_OVERRIDE = new Map();
-Object.values(GP_FOODS).forEach(l => l.forEach(([n, lv]) => GP_OVERRIDE.set(normalize(n), lv)));
+/* ---------- Clés de correspondance dérivées de GP_FOODS ----------
+   GP_FOODS est une table de conseils, écrite pour être lue : « Chou, brocoli,
+   chou-fleur », « Fruits secs (abricots, pruneaux) », « Tomate pelée et
+   épépinée ». S'en servir telle quelle pour apparier des aliments confond
+   deux formes que la lecture, elle, distingue sans effort :
+
+   - une énumération d'aliments de même rang — « Chou, brocoli, chou-fleur » —
+     dont chaque terme vaut pour lui-même ;
+   - une préparation — « Tomate pelée et épépinée » — dont le qualificatif est
+     tout le propos : une tomate crue n'est pas une tomate pelée et épépinée.
+
+   Les exemples entre parenthèses sont déjà couverts par leur tête de liste
+   (« Fruits secs ») et ne deviennent donc pas des clés. Sans cette règle,
+   « abricots » en devenait une, et un abricot frais héritait du niveau des
+   fruits secs — il s'affichait « ⛔ à éviter », au motif d'être un « plat
+   composé ». 45 aliments étaient classés de cette façon. */
+const GP_KEYS = [];
+Object.values(GP_FOODS).forEach(l => l.forEach(([n, lv]) => {
+  normalize(n).replace(/\([^)]*\)/g, ' ').split(',')
+    .map(s => s.trim()).filter(Boolean)
+    /* Le libellé d'origine est gardé : c'est lui qu'on citera comme motif,
+       plutôt que de laisser la raison se chercher ailleurs et dire autre
+       chose que le classement. */
+    .forEach(t => GP_KEYS.push([t, lv, n]));
+}));
+/* La clé la plus longue gagne : « riz complet » doit primer sur « riz ». */
+GP_KEYS.sort((a, b) => b[0].length - a[0].length);
+
+/* Correspondance sur des mots entiers, pluriel toléré : sans ça « ail » se
+   reconnaît dans « ailerons de poulet ». */
+function gpMot(nom, cle) {
+  let i = nom.indexOf(cle);
+  while (i >= 0) {
+    const avantOk = i === 0 || !/[a-z0-9]/.test(nom[i - 1]);
+    let j = i + cle.length;
+    if (nom[j] === 's') j++;
+    if (avantOk && (j === nom.length || !/[a-z0-9]/.test(nom[j]))) return true;
+    i = nom.indexOf(cle, i + 1);
+  }
+  return false;
+}
 
 /* Chaque motif porte son explication. GP_RED et GP_GREEN sont dérivées de ces
    tables : le classement affiché et la raison donnée ne peuvent pas diverger.
    Les explications décrivent un mécanisme digestif, elles ne prescrivent rien. */
 const GP_RED_WHY = [
-  [/complet|cereale|granola|muesli|\bmais\b|pop-?corn|baguette|seigle|son d/,
+  /* « baguette » est sortie d'ici : une baguette blanche n'a ni son ni
+     céréales complètes, et la table de repères la classe déjà pour ce
+     qu'elle est — du pain frais. */
+  [/complet|cereale|granola|muesli|\bmais\b|pop-?corn|seigle|son d/,
    'Céréales complètes et son : leurs fibres insolubles ne se délitent pas et peuvent s’agglomérer dans un estomac qui se vide lentement.'],
   [/graine|noix|amande|pistache|cajou|noisette|pecan|macadamia|cacahuete/,
    'Oléagineux et graines : gras et fibreux à la fois, les deux freins réunis.'],
-  [/seche|sec$|cru$|crudite|chou|brocoli|poireau|celeri|fenouil|salade|artichaut|asperge/,
+  /* « sec » ne vaut ici que pour les légumes secs : le laisser seul classait
+     « Vin blanc sec » et « Chèvre sec » parmi les légumes fibreux. */
+  [/seche|legumes? secs?|cru$|crudite|chou|brocoli|poireau|celeri|fenouil|salade|artichaut|asperge/,
    'Légume cru ou très fibreux : les fibres dures traversent l’estomac sans être réduites.'],
-  [/lentille|haricot|feve|legumineuse|pois chiche|petits pois|flageolet/,
+  /* Le haricot vert se mange en gousse, pas en graine : ce n'est pas une
+     légumineuse, et l'explication ci-dessous ne lui convient pas. */
+  [/lentille|haricot(?!s? (?:vert|plat))|feve|legumineuse|pois chiche|petits pois|flageolet/,
    'Légumineuses : l’enveloppe est riche en fibres, la digestion est lente et fermente.'],
   [/frit|pane|nugget|chips|frite|beignet|churros|donut/,
    'Friture ou panure : la graisse absorbée à la cuisson ralentit nettement la vidange.'],
   [/saucisse|chorizo|salami|saucisson|lardon|bacon|rillette|\bconfits?\b/,
    'Charcuterie grasse : beaucoup de lipides, qui retardent le passage vers l’intestin.'],
-  [/kiwi|raisin|cerise|ananas|mangue|agrume|orange|clementine|pamplemousse|figue|datte|pruneau|abricot sec|framboise|mure|groseille|myrtille|cassis/,
+  /* « mure » au pluriel seulement : « Banane bien mûre » est un adjectif, et
+     la baie ne se nomme qu'au pluriel dans la base. Les fruits secs entrent
+     ici, au pluriel comme au singulier — c'est ainsi qu'ils sont nommés. */
+  [/kiwi|raisin|cerise|ananas|mangue|agrume|orange|clementine|pamplemousse|figue|datte|pruneau|(?:fruits?|abricots?|raisins?) secs?|framboise|mures\b|groseille|myrtille|cassis/,
    'Peaux, pépins ou fibres dures du fruit : ils restent entiers dans l’estomac.'],
   [/gazeu|soda|\bcola|limonade|biere|alcool|^vin |whisky|vodka|rhum|pastis|champagne|cidre|mojito|spritz/,
    'Gaz ou alcool : l’estomac se distend et se vide plus lentement.'],
@@ -6074,7 +6123,9 @@ function gpLevel(f) {
   if (f._gp) return f._gp;
   const k = normalize(f.n);
   let lv = null;
-  for (const [ref, v] of GP_OVERRIDE) { if (k.includes(ref) || ref.includes(k)) { lv = v; break; } }
+  for (const [ref, v, libelle] of GP_KEYS) {
+    if (gpMot(k, ref)) { lv = v; f._gpsrc = libelle; break; }
+  }
   if (lv === null) {
     lv = GP_CAT[f.cat] || 2;
     if (GP_GREEN.test(k)) lv = 1;
@@ -6104,15 +6155,26 @@ function gpReason(f) {
   const fat = gpFat(f);
   const out = [...reds];
 
+  /* Quand le niveau vient de la table de repères, on cite la ligne qui l'a
+     décidé. Sans ça, le classement et la raison se cherchaient chacun de leur
+     côté et pouvaient se contredire : un rôti de bœuf sortait « à éviter »
+     au motif d'être un « plat composé », alors que le repère disait
+     simplement « Steak, rôti, viande en morceaux ». */
+  const repere = f._gpsrc ? `Repère de la table gastroparésie : « ${f._gpsrc} ».` : null;
+
   if (lv === 3) {
     if (fat > 20) out.push(`${lipLabel(fat, f)} : le gras est le premier frein à la vidange de l’estomac.`);
+    if (!out.length && repere) out.push(repere);
     if (!out.length) out.push(GP_CAT_WHY[f.cat] || 'Plat composé, souvent gras ou fibreux, long à réduire en bouillie.');
     if (green) out.push('Mixé ou allongé de bouillon, le même aliment passe souvent mieux.');
   } else if (lv === 1) {
     out.length = 0;
-    out.push(green ? green[1] : 'Texture tendre et peu de gras : l’estomac n’a presque rien à broyer.');
+    out.push(green ? green[1] : repere || 'Texture tendre et peu de gras : l’estomac n’a presque rien à broyer.');
   } else {
     if (fat > 12) out.push(`${lipLabel(fat, f)} : de quoi ralentir un peu la vidange.`);
+    /* Un repère explicite vaut mieux qu'un motif attrapé au passage : la
+       baguette blanche s'expliquait par les « céréales complètes et le son ». */
+    if (repere) { out.length = 0; out.push(repere); }
     if (!out.length) out.push('Ni texture lisse ni frein marqué : la tolérance dépendra surtout de la quantité et de la cuisson.');
   }
   return out;
