@@ -48,8 +48,18 @@ const SRC = {
    sort à 75 sur seize études, alors que les entrées individuelles vont de 59
    à 89.
 
-   Ce recoupement a déjà servi : la carotte crue était à 16, valeur d'une table
-   antérieure. La table 2008 donne 35 crue diced et 39 crue moulue. Corrigée.
+   PIÈGE, payé une fois : la ligne de moyenne ne se rattache pas au groupe le
+   plus proche. Chercher « Pita bread, white » puis prendre la première
+   « mean of N studies » qui suit donne 44 — qui est la moyenne d'All-Bran,
+   le groupe d'après. Le pita blanc, lui, n'a pas de ligne de moyenne : une
+   seule entrée, à 68. Toute automatisation de ce recoupement se trompera de
+   la même façon ; il faut lire la fenêtre.
+
+   Deux corrections en sont sorties :
+   - carotte crue 16 → 35. Le 16 venait d'une table antérieure ; la table 2008
+     donne 35 crue en dés et 39 crue moulue.
+   - pain pita 57 → 68. Le 57 venait de la même table antérieure. La seule
+     entrée de pita blanc dans la table 2008 est à 68.
 
    `node tools/ig-ref.mjs` donne le compte. Le reste est un chantier ouvert,
    pas un état final. */
@@ -65,9 +75,9 @@ const REF = [
   ['Pain de mie',              75, 'at08', 'White wheat flour bread', 'x'],
   ['Pain complet',             74, 'at08', 'Whole wheat / whole meal bread', 'x'],
   ['Pain de mie complet',      74, 'at08', 'Whole wheat / whole meal bread', 'x'],
-  ['Pain de seigle',           50, 'at08', 'Whole grain rye bread'],
+  ['Pain de seigle',           50, 'at08', 'Rye bread, 50% rye + 50% wheat flour', 'x'],
   ['Pain aux céréales',        53, 'at08', 'Multigrain bread'],
-  ['Pain pita',                57, 'at08', 'White pita bread'],
+  ['Pain pita',                68, 'at08', 'Pita bread, white, mini (UK)', 'x'],
   ['Corn flakes',              81, 'at08', 'Corn flakes', 'x'],
   ['Flocons d\'avoine',        55, 'at08', 'Porridge, rolled oats'],
   ['Avoine cuite',             55, 'at08', 'Porridge, rolled oats'],
@@ -80,14 +90,14 @@ const REF = [
   ['Riz complet cuit',         68, 'at08', 'Brown rice, boiled', 'x'],
   ['Riz basmati cuit',         57, 'at08', 'Basmati rice, boiled', 'x'],
   ['Riz gluant',               86, 'at08', 'Glutinous rice'],
-  ['Pâtes cuites al dente',    49, 'at08', 'Spaghetti, white, boiled'],
-  ['Spaghetti cuits',          49, 'at08', 'Spaghetti, white, boiled'],
+  ['Pâtes cuites al dente',    49, 'at08', 'Spaghetti, white, boiled 10-15 min', 'x'],
+  ['Spaghetti cuits',          49, 'at08', 'Spaghetti, white, boiled 10-15 min', 'x'],
   ['Pâtes complètes',          48, 'at08', 'Spaghetti, wholemeal, boiled'],
   ['Vermicelles de riz',       53, 'at08', 'Rice noodles'],
-  ['Semoule de couscous',      65, 'at08', 'Couscous'],
+  ['Semoule de couscous',      65, 'at08', 'Couscous, rehydrated with hot water', 'x'],
   ['Quinoa cuit',              53, 'at08', 'Quinoa', 'x'],
   ['Boulgour cuit',            48, 'at08', 'Bulgur'],
-  ['Orge perlé',               28, 'at08', 'Pearled barley'],
+  ['Orge perlé',               28, 'at08', 'Barley, pearled / pot, boiled', 'x'],
   ['Pommes de terre vapeur',   78, 'at08', 'Potato, boiled'],
   ['Purée de pommes de terre', 87, 'at08', 'Instant mashed potato'],
   ['Frites maison',            63, 'at08', 'French fries'],
