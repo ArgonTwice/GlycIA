@@ -308,6 +308,22 @@ function unent(s) {
 const RESP_H = 3;
 const fmtDur = min => min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
 
+/* Les recettes des modes listent leurs ingrédients en une seule chaîne —
+   « Œufs 2 », « Pain complet 2 tranches » — là où les recettes du noyau
+   séparent déjà le nom de la quantité. On les ramène à la même forme pour
+   les afficher, nom à gauche et quantité à droite.
+
+   Une quantité commence par un chiffre ou une fraction, et court jusqu'au
+   bout : « 3 c. à soupe » ne se coupe pas après « à ». Sans cette règle, un
+   ingrédient qui n'a pas de quantité se faisait amputer de son dernier mot —
+   « Sel, poivre » s'affichait « Sel, » avec « poivre » en quantité. 16 des
+   98 lignes du répertoire étaient dans ce cas. */
+function ingPair(x) {
+  const s = String(x).trim();
+  const m = s.match(/^(.*?)\s+((?:\d|[½¼¾⅓⅔⅛]).*)$/);
+  return m ? [m[1].trim(), m[2].trim()] : [s, ''];
+}
+
 /* Un capteur ne mesure pas en continu : téléphone endormi, capteur retiré,
    lecture ratée, application fermée. Un capteur pose un point toutes les 5 à
    15 minutes ; au-delà de ce seuil, il y a un trou, pas une mesure. */
@@ -2967,7 +2983,7 @@ const RAM_AS_RECIPES = RAMADAN_RECIPES.map(r => ({
   key: ['ramadan', 'jeune', 'jeûne', ...(r.ph === 1 ? ['suhoor'] : ['iftar', 'rupture']), ...normalize(r.t).split(' ')],
   title: r.t, time: r.min, portions: 2, carbs: r.c, ig: r.ig,
   tag: (r.ph === 1 ? 'Suhoor' : 'Iftar') + ' — Ramadan', note: r.n,
-  ing: r.i.map(x => { const m = x.match(/^(.*?)\s+([\d,.]+\s*\S*|\S+)$/); return m ? [m[1], m[2]] : [x, '']; }),
+  ing: r.i.map(ingPair),
   steps: r.s.map(x => [x, Math.max(2, Math.round(r.min / r.s.length))])
 }));
 RECIPES.push(...RAM_AS_RECIPES);
@@ -3079,7 +3095,7 @@ const GE_AS_RECIPES = GE_RECIPES.map(r => ({
   key: ['gastro', 'gastroenterite', 'diarrhee', 'vomissement', 'reprise', ...normalize(r.t).split(' ')],
   title: r.t, time: r.min, portions: 2, carbs: r.c, ig: r.ig,
   tag: `Phase ${r.ph} — gastro-entérite`, note: r.n,
-  ing: r.i.map(x => { const m = x.match(/^(.*?)\s+([\d,.]+\s*\S*|\S+)$/); return m ? [m[1], m[2]] : [x, '']; }),
+  ing: r.i.map(ingPair),
   steps: r.s.map(x => [x, Math.max(2, Math.round(r.min / r.s.length))])
 }));
 RECIPES.push(...GE_AS_RECIPES);
@@ -3188,7 +3204,7 @@ const SPORT_AS_RECIPES = SPORT_RECIPES.map(r => ({
   key: ['sport', 'endurance', 'effort', 'course', 'entrainement', 'recuperation', ...normalize(r.t).split(' ')],
   title: r.t, time: r.min, portions: 2, carbs: r.c, ig: r.ig,
   tag: `Phase ${r.ph} — sport d'endurance`, note: r.n,
-  ing: r.i.map(x => { const m = x.match(/^(.*?)\s+([\d,.]+\s*\S*|\S+)$/); return m ? [m[1], m[2]] : [x, '']; }),
+  ing: r.i.map(ingPair),
   steps: r.s.map(x => [x, Math.max(2, Math.round(r.min / r.s.length))])
 }));
 RECIPES.push(...SPORT_AS_RECIPES);
@@ -4341,7 +4357,7 @@ const GP_AS_RECIPES = GP_RECIPES.map(r => ({
   key: ['gastroparesie','mixe','lisse','veloute','purée','estomac','nausee','doux', ...normalize(r.t).split(' ')],
   title: r.t, time: r.min, portions: 2, carbs: r.c, ig: r.ig, ph: r.ph,
   tag: 'Phase ' + r.ph + ' — gastroparésie', note: r.n,
-  ing: r.i.map(x => { const m = x.match(/^(.*?)\s+([\d,.]+\s*\S*|\S+)$/); return m ? [m[1], m[2]] : [x, '']; }),
+  ing: r.i.map(ingPair),
   steps: r.s.map(x => [x, Math.max(2, Math.round(r.min / r.s.length))])
 }));
 RECIPES.push(...GP_AS_RECIPES);
@@ -5247,12 +5263,12 @@ generateRetro(false);
 if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   normalize, clamp, round, esc, fmtQ, igClass, igLabel, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
-  igKey, personalIg, collectResponses, mealResponse, matchShoppingItem, gluPath, unent,
+  igKey, personalIg, collectResponses, mealResponse, matchShoppingItem, gluPath, unent, ingPair,
   migrateIgPerso, IG_ORIG,
   navStack, pushNav, closeNav, navTab, go, curTab: () => curTab, removeMeal,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
-  computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL
+  computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL, DB
 });
 
 })();

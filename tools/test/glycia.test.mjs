@@ -8,12 +8,12 @@ import api, { navigateur } from './harness.mjs';
 const {
   normalize, clamp, round, fmtQ, igLabel, igClass, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
-  igKey, personalIg, mealResponse, matchShoppingItem, gluPath, unent,
+  igKey, personalIg, mealResponse, matchShoppingItem, gluPath, unent, ingPair,
   migrateIgPerso, IG_ORIG,
   navStack, pushNav, closeNav, navTab, go, curTab, removeMeal,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
-  computeTotals, toGl, fmtDur, IGP, state, ALL
+  computeTotals, toGl, fmtDur, IGP, state, ALL, DB
 } = api;
 
 /* Le Worker n'a pas de DOM : il s'importe directement. Seul `export default`
@@ -314,6 +314,41 @@ describe('noms venus de l’exterieur', () => {
   test('les bases livrees avec l’app sont propres', () => {
     const sales = ALL.filter(f => /&(apos|quot|amp|lt|gt|nbsp);|&#\d+;/.test(f.n));
     assert.deepEqual(sales.map(f => f.n), [], 'aucune entite ne doit rester dans db.json');
+  });
+});
+
+/* Les recettes des modes listent leurs ingredients en une seule chaine. La
+   regle d'avant detachait le dernier mot quoi qu'il arrive : « Sel, poivre »
+   s'affichait « Sel, » avec « poivre » en quantite. */
+describe('ingredients des recettes de mode', () => {
+  test('la quantite est detachee quand il y en a une', () => {
+    assert.deepEqual(ingPair('Œufs 2'), ['Œufs', '2']);
+    assert.deepEqual(ingPair('Pain complet 2 tranches'), ['Pain complet', '2 tranches']);
+    assert.deepEqual(ingPair('Avocat ½'), ['Avocat', '½']);
+    /* La quantite court jusqu'au bout : « 3 c. à soupe » ne se coupe pas
+       apres « à », ce que faisait la regle precedente. */
+    assert.deepEqual(ingPair('Lait écrémé 3 c. à soupe'), ['Lait écrémé', '3 c. à soupe']);
+  });
+
+  test('sans quantite, le nom reste entier', () => {
+    assert.deepEqual(ingPair('Sel, poivre'), ['Sel, poivre', '']);
+    assert.deepEqual(ingPair('Persil et coriandre'), ['Persil et coriandre', '']);
+    assert.deepEqual(ingPair('Menthe fraîche'), ['Menthe fraîche', '']);
+    assert.deepEqual(ingPair('Une pincée de sel'), ['Une pincée de sel', '']);
+    assert.deepEqual(ingPair('Cannelle en option'), ['Cannelle en option', '']);
+  });
+
+  /* Le repertoire entier doit passer : aucun nom ne doit finir sur une
+     virgule ou une conjonction, signe qu'on a coupe au mauvais endroit. */
+  test('aucune ligne du repertoire n’est coupee de travers', () => {
+    const modes = ['GP_RECIPES', 'RAMADAN_RECIPES', 'GE_RECIPES', 'SPORT_RECIPES'];
+    const mauvaises = [];
+    modes.forEach(m => (DB[m] || []).forEach(r => (r.i || []).forEach(x => {
+      const [nom, qte] = ingPair(x);
+      if (/[,;]$|\b(et|ou|de|à|en|non)$/i.test(nom)) mauvaises.push(`${x} -> ${nom} | ${qte}`);
+      if (qte && !/^[\d½¼¾⅓⅔⅛]/.test(qte)) mauvaises.push(`${x} -> quantite « ${qte} »`);
+    })));
+    assert.deepEqual(mauvaises, []);
   });
 });
 
