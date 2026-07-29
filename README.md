@@ -123,7 +123,8 @@ Le workflow `release.yml` crée la release et y attache `standalone.html` ainsi 
 | Index glycémique, 70 aliments courants | [Atkinson, Foster-Powell & Brand-Miller](https://doi.org/10.2337/dc08-1239), *International Tables of Glycemic Index and Glycemic Load Values*, Diabetes Care 31(12):2281-2283 | 2008 |
 | Index glycémique, reste du noyau | **Indicatif, non tracé — voir ci-dessous** | — |
 | Seuils IG (bas ≤ 55, moyen 56–69, élevé ≥ 70) | Convention internationale, [Atkinson & Brand-Miller 2021](https://ajcn.nutrition.org/article/S0002-9165(22)00494-4/fulltext) | 2021 |
-| Repères fibres, fruits et légumes, sucres libres | [OMS, apports en glucides](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates) | 2023 |
+| Repères fibres (25 g/j) et fruits-légumes (400 g/j) | [OMS, apports en glucides](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates) | 2023 |
+| Repère sucres libres (< 10 % de l'apport) | [OMS, *Guideline: sugars intake for adults and children*](https://www.who.int/publications/i/item/9789241549028) | 2015 |
 | Produits emballés scannés | [Open Food Facts](https://world.openfoodfacts.org/) (ODbL) | en ligne |
 | Complément international | [FoodData Central](https://fdc.nal.usda.gov/), USDA | en ligne |
 
@@ -179,7 +180,13 @@ node tools/ig-ref.mjs           # couverture, recoupement et écarts, n'écrit r
 node tools/ig-ref.mjs --apply   # écrit la table IG_SRC dans db.json
 ```
 
-**Ce que la citation garantit, et ce qu'elle ne garantit pas.** Elle dit d'où la valeur est censée venir. Elle ne dit pas qu'elle a été recopiée sans faute. L'annexe de l'article est payante et il n'existe aucune reproduction ouverte et exploitable par machine : le recoupement se fait à la main, valeur par valeur. **4 des 70 le sont** à ce jour (riz blanc 73, riz complet 68, pois chiches 28, dattes 42), contre des sources secondaires citant explicitement Atkinson 2008. L'outil affiche le compte à chaque exécution. C'est un chantier ouvert, et il est écrit comme tel plutôt que passé sous silence.
+**Ce que la citation garantit, et ce qu'elle ne garantit pas.** Elle dit d'où la valeur est censée venir. Elle ne dit pas qu'elle a été recopiée sans faute — et la distinction n'est pas theorique.
+
+**21 des 70 valeurs sont recoupées** contre la table A1 de l'article elle-même. La table liste chaque étude séparément, puis une ligne « mean of N studies » quand il y en a plusieurs : c'est cette moyenne qui fait foi, une entrée isolée ne valant que pour son échantillon. Le pain blanc sort ainsi à 75 sur seize études, quand les entrées individuelles vont de 59 à 89.
+
+Le recoupement a déjà payé : **la carotte crue était à 16**, valeur d'une table antérieure reprise sans vérification. La table 2008 donne 35 crue en dés et 39 crue moulue. Corrigée à 35.
+
+Les 49 restantes sont citées mais pas reconfrontées. `node tools/audit-sources.mjs` donne le compte à chaque exécution. C'est un chantier ouvert, écrit comme tel plutôt que passé sous silence.
 
 **L'IG indicatif** du reste du noyau est resté tel quel, et l'audit dit pourquoi s'en méfier : **82 % de ces valeurs sont des multiples de 5**, les plus fréquentes étant 60, 55, 50, 65, 45. Des mesures de laboratoire ne se distribuent pas ainsi. Elles restent vraisemblables, elles ne sont pas traçables — le `~` et le mot « indicatif » sont là pour ça.
 

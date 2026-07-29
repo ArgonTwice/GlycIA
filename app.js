@@ -4876,7 +4876,7 @@ function renderSettings() {
       </div>
       <button class="btn btn-outline btn-block" id="usdaSave" style="margin-top:8px">Enregistrer la clé</button>
 
-      <div class="eyebrow" style="margin:16px 0 8px">Repères de l'OMS, 2023</div>
+      <div class="eyebrow" style="margin:16px 0 8px">Repères de l'OMS</div>
       <div class="fgrid">
         <div><b style="color:var(--sage-deep)">25 g</b><span>Fibres / jour</span></div>
         <div><b style="color:var(--sage-deep)">400 g</b><span>Fruits+légumes / j</span></div>
@@ -4889,6 +4889,13 @@ function renderSettings() {
         n'est pas un chiffre officiel et n'est pas une cible : c'est la médiane de tes deux
         dernières semaines, l'échelle de l'anneau se règle donc sur tes propres journées.
         Aucune institution ne publie de cible en grammes.
+      </p>
+      <p class="foot-note" style="text-align:left">
+        Fibres et fruits-légumes : <a href="https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates"
+        target="_blank" rel="noopener">recommandation OMS sur les glucides, 2023</a>, pour les 10 ans et plus.
+        Les sucres libres viennent d'un autre texte, la <a href="https://www.who.int/publications/i/item/9789241549028"
+        target="_blank" rel="noopener">recommandation OMS sur les sucres, 2015</a> — celle de 2023 n'en fixe pas
+        la part, et l'app l'a longtemps attribuée à la mauvaise.
       </p>
     </div>
     <div class="card" style="margin-top:12px">

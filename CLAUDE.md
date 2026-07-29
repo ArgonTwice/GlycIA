@@ -34,6 +34,7 @@ Le hook `.githooks/pre-commit` le regenere automatiquement (`git config core.hoo
 ## Verifications avant commit
 ```bash
 node tools/audit-gastro.mjs   # coherence du classement gastroparesie
+node tools/audit-sources.mjs   # references citees : completes, existantes, utilisees
 node --check app.js
 node -e "JSON.parse(require('fs').readFileSync('db.json','utf8'))"
 node --test "tools/test/*.test.mjs"

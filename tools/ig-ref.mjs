@@ -38,13 +38,21 @@ const SRC = {
    ailleurs que dans ma saisie ». Distinction qui compte : la citation garantit
    d'où la valeur est censée venir, pas que je l'aie recopiée sans faute.
 
-     'x' — recoupé avec une source secondaire citant explicitement Atkinson 2008
-     absent — saisi depuis les tables publiées, jamais reconfronté
+     'x' — la valeur a été retrouvée dans la table A1 de l'article, ou dans
+           une source secondaire qui la cite explicitement
+     absent — saisie depuis les tables publiées, jamais reconfrontée
 
-   L'annexe de l'article est payante et il n'existe aucune reproduction ouverte
-   et exploitable par machine : le recoupement se fait donc à la main, valeur
-   par valeur, et il avance lentement. `node tools/ig-ref.mjs` en donne le
-   compte. C'est un chantier ouvert, pas un état final. */
+   La table A1 liste chaque étude séparément puis, quand il y en a plusieurs,
+   une ligne « mean of N studies ». C'est cette moyenne qui fait foi ici : une
+   entrée isolée ne vaut que pour son échantillon. Le pain blanc, par exemple,
+   sort à 75 sur seize études, alors que les entrées individuelles vont de 59
+   à 89.
+
+   Ce recoupement a déjà servi : la carotte crue était à 16, valeur d'une table
+   antérieure. La table 2008 donne 35 crue diced et 39 crue moulue. Corrigée.
+
+   `node tools/ig-ref.mjs` donne le compte. Le reste est un chantier ouvert,
+   pas un état final. */
 
 /* [nom dans GlycIA, IG, source, aliment mesuré tel qu'il est nommé dans la table, recoupé ?]
    Le quatrième champ est le rapprochement lui-même : c'est lui qu'on vérifie.
@@ -54,30 +62,30 @@ const SRC = {
    comme tel qu'un chiffre tracé qui ne tient pas. */
 const REF = [
   // Pains et petit-déjeuner
-  ['Pain de mie',              75, 'at08', 'White wheat flour bread'],
-  ['Pain complet',             74, 'at08', 'Whole wheat / whole meal bread'],
-  ['Pain de mie complet',      74, 'at08', 'Whole wheat / whole meal bread'],
+  ['Pain de mie',              75, 'at08', 'White wheat flour bread', 'x'],
+  ['Pain complet',             74, 'at08', 'Whole wheat / whole meal bread', 'x'],
+  ['Pain de mie complet',      74, 'at08', 'Whole wheat / whole meal bread', 'x'],
   ['Pain de seigle',           50, 'at08', 'Whole grain rye bread'],
   ['Pain aux céréales',        53, 'at08', 'Multigrain bread'],
   ['Pain pita',                57, 'at08', 'White pita bread'],
-  ['Corn flakes',              81, 'at08', 'Corn flakes'],
+  ['Corn flakes',              81, 'at08', 'Corn flakes', 'x'],
   ['Flocons d\'avoine',        55, 'at08', 'Porridge, rolled oats'],
   ['Avoine cuite',             55, 'at08', 'Porridge, rolled oats'],
   ['Muesli sans sucre',        57, 'at08', 'Muesli'],
   ['Galette de riz soufflé',   87, 'at08', 'Rice cakes, white'],
-  ['Pop-corn nature',          65, 'at08', 'Popcorn'],
+  ['Pop-corn nature',          65, 'at08', 'Popcorn', 'x'],
 
   // Féculents
   ['Riz blanc cuit',           73, 'at08', 'White rice, boiled', 'x'],
   ['Riz complet cuit',         68, 'at08', 'Brown rice, boiled', 'x'],
-  ['Riz basmati cuit',         57, 'at08', 'Basmati rice, boiled'],
+  ['Riz basmati cuit',         57, 'at08', 'Basmati rice, boiled', 'x'],
   ['Riz gluant',               86, 'at08', 'Glutinous rice'],
   ['Pâtes cuites al dente',    49, 'at08', 'Spaghetti, white, boiled'],
   ['Spaghetti cuits',          49, 'at08', 'Spaghetti, white, boiled'],
   ['Pâtes complètes',          48, 'at08', 'Spaghetti, wholemeal, boiled'],
   ['Vermicelles de riz',       53, 'at08', 'Rice noodles'],
   ['Semoule de couscous',      65, 'at08', 'Couscous'],
-  ['Quinoa cuit',              53, 'at08', 'Quinoa'],
+  ['Quinoa cuit',              53, 'at08', 'Quinoa', 'x'],
   ['Boulgour cuit',            48, 'at08', 'Bulgur'],
   ['Orge perlé',               28, 'at08', 'Pearled barley'],
   ['Pommes de terre vapeur',   78, 'at08', 'Potato, boiled'],
@@ -85,19 +93,19 @@ const REF = [
   ['Frites maison',            63, 'at08', 'French fries'],
   ['Frites fast-food',         63, 'at08', 'French fries'],
   ['Patate douce cuite',       63, 'at08', 'Sweet potato, boiled'],
-  ['Maïs doux en boîte',       52, 'at08', 'Sweet corn'],
-  ['Chips',                    56, 'at08', 'Potato crisps'],
+  ['Maïs doux en boîte',       52, 'at08', 'Sweet corn', 'x'],
+  ['Chips',                    56, 'at08', 'Potato crisps', 'x'],
 
   // Légumineuses
   ['Lentilles vertes cuites',  32, 'at08', 'Lentils'],
-  ['Lentilles corail cuites',  26, 'at08', 'Red lentils'],
+  ['Lentilles corail cuites',  26, 'at08', 'Red lentils', 'x'],
   ['Pois chiches cuits',       28, 'at08', 'Chickpeas', 'x'],
   ['Haricots rouges cuits',    24, 'at08', 'Kidney beans'],
   ['Haricots blancs cuits',    31, 'at08', 'Navy (haricot) beans'],
-  ['Pois cassés',              25, 'at08', 'Split peas'],
+  ['Pois cassés',              25, 'at08', 'Split peas', 'x'],
   ['Soja jaune cuit',          16, 'at08', 'Soya beans'],
   ['Petits pois',              51, 'at08', 'Green peas'],
-  ['Houmous',                   6, 'at08', 'Hummus'],
+  ['Houmous',                   6, 'at08', 'Hummus', 'x'],
 
   // Fruits
   ['Pomme',                    36, 'at08', 'Apple, raw'],
@@ -107,7 +115,7 @@ const REF = [
   ['Pamplemousse',             25, 'at08', 'Grapefruit, raw'],
   ['Fraises',                  40, 'at08', 'Strawberries, fresh'],
   ['Raisin',                   46, 'at08', 'Grapes, raw'],
-  ['Pastèque',                 76, 'at08', 'Watermelon, raw'],
+  ['Pastèque',                 76, 'at08', 'Watermelon, raw', 'x'],
   ['Melon',                    65, 'at08', 'Cantaloupe, raw'],
   ['Ananas frais',             59, 'at08', 'Pineapple, raw'],
   ['Mangue',                   51, 'at08', 'Mango, raw'],
@@ -116,15 +124,15 @@ const REF = [
   ['Abricot',                  34, 'at08', 'Apricot, raw'],
   ['Dattes séchées',           42, 'at08', 'Dates, dried', 'x'],
   ['Raisins secs',             64, 'at08', 'Raisins'],
-  ['Pruneaux',                 29, 'at08', 'Prunes, pitted'],
+  ['Pruneaux',                 29, 'at08', 'Prunes, pitted', 'x'],
 
   // Légumes
-  ['Carotte crue',             16, 'at08', 'Carrots, raw'],
-  ['Carotte cuite',            39, 'at08', 'Carrots, boiled'],
+  ['Carotte crue',             35, 'at08', 'Carrots, raw, diced', 'x'],
+  ['Carotte cuite',            39, 'at08', 'Carrots, boiled', 'x'],
   ['Betterave cuite',          64, 'at08', 'Beetroot'],
 
   // Boissons
-  ['Jus d\'orange',            50, 'at08', 'Orange juice, unsweetened'],
+  ['Jus d\'orange',            50, 'at08', 'Orange juice, unsweetened', 'x'],
   ['Jus de pomme',             41, 'at08', 'Apple juice, unsweetened'],
   ['Jus d\'ananas',            46, 'at08', 'Pineapple juice, unsweetened'],
   ['Boisson au soja',          34, 'at08', 'Soy milk'],
