@@ -173,9 +173,11 @@ D'où trois régimes, visibles sur chaque fiche :
 Ces valeurs **remplacent** celles saisies à la main, et l'écart est instructif : quinoa 35 → 53, riz complet 50 → 68, patate douce 50 → 63, pommes de terre vapeur 65 → 78. Il va presque toujours dans le même sens — les valeurs héritées flattaient les aliments réputés « à IG bas ».
 
 ```bash
-node tools/ig-ref.mjs           # couverture et écarts, n'écrit rien
+node tools/ig-ref.mjs           # couverture, recoupement et écarts, n'écrit rien
 node tools/ig-ref.mjs --apply   # écrit la table IG_SRC dans db.json
 ```
+
+**Ce que la citation garantit, et ce qu'elle ne garantit pas.** Elle dit d'où la valeur est censée venir. Elle ne dit pas qu'elle a été recopiée sans faute. L'annexe de l'article est payante et il n'existe aucune reproduction ouverte et exploitable par machine : le recoupement se fait à la main, valeur par valeur. **4 des 70 le sont** à ce jour (riz blanc 73, riz complet 68, pois chiches 28, dattes 42), contre des sources secondaires citant explicitement Atkinson 2008. L'outil affiche le compte à chaque exécution. C'est un chantier ouvert, et il est écrit comme tel plutôt que passé sous silence.
 
 **L'IG indicatif** du reste du noyau est resté tel quel, et l'audit dit pourquoi s'en méfier : **82 % de ces valeurs sont des multiples de 5**, les plus fréquentes étant 60, 55, 50, 65, 45. Des mesures de laboratoire ne se distribuent pas ainsi. Elles restent vraisemblables, elles ne sont pas traçables — le `~` et le mot « indicatif » sont là pour ça.
 

@@ -1,6 +1,6 @@
 /* Table d'IG tracés — saisie à la main, une citation par valeur.
-   node tools/ig-ref.mjs           rapport de couverture
-   node tools/ig-ref.mjs --apply   écrit IG_REF dans db.json
+   node tools/ig-ref.mjs           rapport de couverture et de recoupement
+   node tools/ig-ref.mjs --apply   écrit IG_SRC dans db.json
 
    Pourquoi ce fichier existe. Sur les 1 042 aliments du noyau, 850 portent un
    IG vraisemblable mais non traçable : 82 % sont des multiples de 5, signature
@@ -33,7 +33,20 @@ const SRC = {
   }
 };
 
-/* [nom dans GlycIA, IG, source, aliment mesuré tel qu'il est nommé dans la table]
+/* Cinquième champ, facultatif : l'état de recoupement de la transcription.
+   Il ne dit pas « cette valeur est vraie », il dit « ce chiffre a été retrouvé
+   ailleurs que dans ma saisie ». Distinction qui compte : la citation garantit
+   d'où la valeur est censée venir, pas que je l'aie recopiée sans faute.
+
+     'x' — recoupé avec une source secondaire citant explicitement Atkinson 2008
+     absent — saisi depuis les tables publiées, jamais reconfronté
+
+   L'annexe de l'article est payante et il n'existe aucune reproduction ouverte
+   et exploitable par machine : le recoupement se fait donc à la main, valeur
+   par valeur, et il avance lentement. `node tools/ig-ref.mjs` en donne le
+   compte. C'est un chantier ouvert, pas un état final. */
+
+/* [nom dans GlycIA, IG, source, aliment mesuré tel qu'il est nommé dans la table, recoupé ?]
    Le quatrième champ est le rapprochement lui-même : c'est lui qu'on vérifie.
    Volontairement absents : le lait, le chocolat noir, la banane très mûre et la
    courge — leurs valeurs publiées divergent trop d'une étude à l'autre pour
@@ -55,8 +68,8 @@ const REF = [
   ['Pop-corn nature',          65, 'at08', 'Popcorn'],
 
   // Féculents
-  ['Riz blanc cuit',           73, 'at08', 'White rice, boiled'],
-  ['Riz complet cuit',         68, 'at08', 'Brown rice, boiled'],
+  ['Riz blanc cuit',           73, 'at08', 'White rice, boiled', 'x'],
+  ['Riz complet cuit',         68, 'at08', 'Brown rice, boiled', 'x'],
   ['Riz basmati cuit',         57, 'at08', 'Basmati rice, boiled'],
   ['Riz gluant',               86, 'at08', 'Glutinous rice'],
   ['Pâtes cuites al dente',    49, 'at08', 'Spaghetti, white, boiled'],
@@ -78,7 +91,7 @@ const REF = [
   // Légumineuses
   ['Lentilles vertes cuites',  32, 'at08', 'Lentils'],
   ['Lentilles corail cuites',  26, 'at08', 'Red lentils'],
-  ['Pois chiches cuits',       28, 'at08', 'Chickpeas'],
+  ['Pois chiches cuits',       28, 'at08', 'Chickpeas', 'x'],
   ['Haricots rouges cuits',    24, 'at08', 'Kidney beans'],
   ['Haricots blancs cuits',    31, 'at08', 'Navy (haricot) beans'],
   ['Pois cassés',              25, 'at08', 'Split peas'],
@@ -101,7 +114,7 @@ const REF = [
   ['Kiwi',                     58, 'at08', 'Kiwifruit, raw'],
   ['Pêche',                    42, 'at08', 'Peach, raw'],
   ['Abricot',                  34, 'at08', 'Apricot, raw'],
-  ['Dattes séchées',           42, 'at08', 'Dates, dried'],
+  ['Dattes séchées',           42, 'at08', 'Dates, dried', 'x'],
   ['Raisins secs',             64, 'at08', 'Raisins'],
   ['Pruneaux',                 29, 'at08', 'Prunes, pitted'],
 
@@ -147,7 +160,11 @@ REF.forEach(([nom, ig, , mesure]) => {
 const doublons = new Set();
 REF.forEach(([n]) => { if (doublons.has(norm(n))) console.error('  doublon :', n); doublons.add(norm(n)); });
 
+const recoupees = REF.filter(r => r[4] === 'x').length;
+
 console.log(`Table d'IG tracés : ${REF.length} valeurs, ${REF.length - absents.length} rattachées à un aliment de GlycIA.`);
+console.log(`Transcription recoupée : ${recoupees}/${REF.length}. Les ${REF.length - recoupees} autres`
+  + ` sont citées mais n'ont pas été reconfrontées à une source — voir l'en-tête de ce fichier.`);
 
 if (absents.length) {
   console.log(`\n${absents.length} clés sans aliment correspondant — nom à corriger :`);

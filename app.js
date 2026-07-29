@@ -286,21 +286,49 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&
 const RESP_H = 3;
 const fmtDur = min => min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
 
+/* Un capteur ne mesure pas en continu : téléphone endormi, capteur retiré,
+   lecture ratée, application fermée. Un capteur pose un point toutes les 5 à
+   15 minutes ; au-delà de ce seuil, il y a un trou, pas une mesure. */
+const GAP_MIN = 30;
+const trou = (a, b) => (+b.t - +a.t) > GAP_MIN * 60000;
+
+/* Relier deux points séparés par un trou dessinerait une glycémie qui n'a
+   jamais été mesurée — exactement ce que l'app refuse de faire ailleurs.
+   On lève le crayon : chaque segment repart d'un « M ». */
+function gluPath(pts, X, Y) {
+  return pts.map((p, i) =>
+    `${i && !trou(pts[i - 1], p) ? 'L' : 'M'}${X(p).toFixed(1)} ${Y(p.mgdl).toFixed(1)}`
+  ).join(' ');
+}
+
 function mealResponse(m) {
   if (!state.glucose.length) return null;
   const t0 = +m.time, t1 = t0 + RESP_H * 3600e3;
   const pts = state.glucose.filter(p => +p.t >= t0 && +p.t <= t1);
   if (pts.length < 4) return null;
+
+  /* Sans point de départ proche du repas, l'écart ne veut rien dire : une
+     glycémie vieille de six heures n'est pas un point de départ. Mieux vaut
+     ne rien afficher qu'un « +0,85 g/L » mesuré contre une valeur d'hier. */
   const before = state.glucose.filter(p => +p.t <= t0);
-  const base = before.length ? before[before.length - 1].mgdl : pts[0].mgdl;
+  const avant = before.length ? before[before.length - 1] : null;
+  const depart = avant && !trou(avant, { t: t0 }) ? avant.mgdl
+    : (!trou({ t: t0 }, pts[0]) ? pts[0].mgdl : null);
+  if (depart === null) return null;
+
   let peak = pts[0], pi = 0;
   pts.forEach((p, i) => { if (p.mgdl > peak.mgdl) { peak = p; pi = i; } });
-  const back = pts.slice(pi).find(p => p.mgdl <= base + 15);
+  const back = pts.slice(pi).find(p => p.mgdl <= depart + 15);
+
+  /* « Encore au-dessus à 3 h » est une affirmation sur la fin de la fenêtre :
+     elle demande d'y avoir mesuré quelque chose. */
+  const fin = +pts[pts.length - 1].t;
   return {
-    pts, base, peak,
-    delta: peak.mgdl - base,
+    pts, base: depart, peak,
+    delta: peak.mgdl - depart,
     peakMin: Math.round((+peak.t - t0) / 60000),
-    backMin: back ? Math.round((+back.t - t0) / 60000) : null
+    backMin: back ? Math.round((+back.t - t0) / 60000) : null,
+    complet: fin >= t0 + 2 * 3600e3
   };
 }
 
@@ -314,7 +342,7 @@ function mealCurve(m) {
   const t0 = +r.pts[0].t, span = Math.max(1, +r.pts[r.pts.length - 1].t - t0);
   const X = p => ((+p.t - t0) / span) * W;
   const Y = v => pad + (1 - (v - lo) / rng) * (H - pad * 2);
-  const d = r.pts.map((p, i) => `${i ? 'L' : 'M'}${X(p).toFixed(1)} ${Y(p.mgdl).toFixed(1)}`).join(' ');
+  const d = gluPath(r.pts, X, Y);
   return `
     <div class="meal-curve">
       <svg viewBox="0 0 ${W} ${H}" role="img"
@@ -327,7 +355,8 @@ function mealCurve(m) {
       </svg>
       <p>Départ ${toGl(r.base)} · pic ${toGl(r.peak.mgdl)} g/L à ${fmtDur(r.peakMin)}
         (${r.delta >= 0 ? '+' : '−'}${toGl(Math.abs(r.delta))} g/L)${r.backMin !== null
-          ? ` · revenu au niveau de départ à ${fmtDur(r.backMin)}` : ` · encore au-dessus à ${RESP_H} h`}</p>
+          ? ` · revenu au niveau de départ à ${fmtDur(r.backMin)}`
+          : r.complet ? ` · encore au-dessus à ${RESP_H} h` : ' · mesures interrompues avant la fin'}</p>
     </div>`;
 }
 
@@ -2371,7 +2400,7 @@ function renderGlucose(msg) {
   const X = p => ((+p.t - t0) / span) * W;
   const Y = v => padT + (1 - (v - lo) / (hi - lo)) * (H - padB - padT);
 
-  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p).toFixed(1)} ${Y(p.mgdl).toFixed(1)}`).join(' ');
+  const d = gluPath(pts, X, Y);
   const bandTop = Y(180), bandBot = Y(70);
   const last = pts[pts.length - 1];
   const mins = Math.round((Date.now() - +last.t) / 60000);
@@ -2391,9 +2420,15 @@ function renderGlucose(msg) {
             stroke-linejoin="round" stroke-linecap="round"/>
       <circle cx="${X(last).toFixed(1)}" cy="${Y(last.mgdl).toFixed(1)}" r="4" fill="#7E6BB0"/>
     </svg>`;
+  /* Le graphe montre les trous en levant le crayon ; la légende les chiffre,
+     pour qu'on sache sur combien de temps ces bornes ont été relevées. */
+  const creux = pts.reduce((s, p, i) => s + (i && trou(pts[i - 1], p) ? +p.t - +pts[i - 1].t : 0), 0);
+  const creuxMin = Math.round(creux / 60000);
+
   $('#cgmNow').textContent = `${toGl(last.mgdl)} g/L`;
-  $('#cgmInfo').innerHTML = `<b>Dernière mesure ${mins < 2 ? "à l'instant" : `il y a ${mins} min`}</b>`
-    + ` — ${last.mgdl} mg/dL. Sur 24 h : de ${toGl(Math.min(...vals))} à ${toGl(Math.max(...vals))} g/L, ${pts.length} mesures.`
+  $('#cgmInfo').innerHTML = `<b>Dernière mesure ${mins < 2 ? "à l'instant" : `il y a ${fmtDur(mins)}`}</b>`
+    + ` — ${last.mgdl} mg/dL. Sur 24 h : de ${toGl(Math.min(...vals))} à ${toGl(Math.max(...vals))} g/L, ${pts.length} mesures`
+    + (creuxMin >= GAP_MIN ? `, et ${fmtDur(creuxMin)} sans relevé.` : '.')
     + (msg ? ` <span style="color:var(--terra-deep)">${esc(msg)}</span>` : '');
 }
 
@@ -4999,7 +5034,7 @@ generateRetro(false);
 if (globalThis.__GLYCIA_TEST__) Object.assign(globalThis.__GLYCIA_TEST__, {
   normalize, clamp, round, esc, fmtQ, igClass, igLabel, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
-  igKey, personalIg, collectResponses, mealResponse, matchShoppingItem,
+  igKey, personalIg, collectResponses, mealResponse, matchShoppingItem, gluPath,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, offToFood, offToEntry, toGl, fmtDur, IGP, state, ALL

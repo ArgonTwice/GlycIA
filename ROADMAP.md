@@ -150,7 +150,12 @@ aliments dont les valeurs publiées divergent trop d'une étude à l'autre — l
 chocolat noir, la banane très mûre, la courge — restent volontairement dehors : mieux vaut
 un IG indicatif annoncé comme tel qu'un chiffre tracé qui ne tient pas.
 
-`node tools/ig-ref.mjs` liste la couverture et les écarts avec les valeurs héritées.
+`node tools/ig-ref.mjs` liste la couverture, le recoupement et les écarts avec les valeurs héritées.
+
+**Chantier jumeau, plus urgent que l'extension : recouper les 70 valeurs déjà en place.**
+4 le sont. Le cinquième champ de chaque entrée porte cet état. La citation garantit d'où
+la valeur est censée venir, pas qu'elle ait été recopiée sans faute — et une faute de
+transcription porterait exactement le même badge « IG mesuré » qu'une valeur juste.
 
 ---
 

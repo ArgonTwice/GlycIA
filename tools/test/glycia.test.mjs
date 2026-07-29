@@ -8,7 +8,7 @@ import api from './harness.mjs';
 const {
   normalize, clamp, round, fmtQ, igLabel, igClass, aIg, withBrand,
   gpLevel, gpReason, gpFat, gpRecipeLevel, gpRecipeReason,
-  igKey, personalIg, mealResponse, matchShoppingItem,
+  igKey, personalIg, mealResponse, matchShoppingItem, gluPath,
   mergeGlucose, restoreGlucose, forgetGlucose, cgmProvider, store,
   IG_TRACE, igCite,
   computeTotals, toGl, fmtDur, IGP, state, ALL
@@ -223,6 +223,66 @@ describe('réponse glycémique', () => {
   test('sans capteur, pas de courbe', () => {
     state.glucose = [];
     assert.equal(mealResponse({ time: new Date(), carbs: 60, ig: 60 }), null);
+  });
+
+  /* Depuis que la courbe s'accumule d'une lecture à l'autre, les trous sont la
+     règle et non l'exception : téléphone endormi, capteur retiré, LibreLinkUp
+     qui ne rend que 12 h. Un point de départ vieux de six heures donnerait un
+     « +0,85 g/L » mesuré contre une glycémie d'hier. */
+  test('un point de départ trop vieux invalide la réponse', () => {
+    const t = Date.now() - 4 * 3600e3;
+    const pts = courbe(95, 180, t);
+    const decolles = pts.map(p => (+p.t < t ? { t: new Date(+p.t - 6 * 3600e3), mgdl: p.mgdl } : p));
+    state.glucose = decolles;
+    const r = mealResponse({ time: new Date(t), carbs: 60, ig: 60 });
+    /* Le premier point après le repas est à t+0, donc il fait office de départ.
+       En le décalant aussi, il ne reste plus rien de proche. */
+    assert.ok(r, 'un premier point à l’heure du repas fait un départ valable');
+    state.glucose = decolles.filter(p => +p.t < t || +p.t > t + 40 * 60000);
+    assert.equal(mealResponse({ time: new Date(t), carbs: 60, ig: 60 }), null,
+      'sans mesure proche du repas, aucun écart n’a de sens');
+    state.glucose = [];
+  });
+
+  test('« encore au-dessus à 3 h » demande d’avoir mesuré jusque-là', () => {
+    const t = Date.now() - 4 * 3600e3;
+    /* Une montée qui ne redescend pas, mais dont les mesures s'arrêtent à 40 min */
+    state.glucose = [-10, -5, 0, 10, 20, 30, 40].map(min => ({
+      t: new Date(t + min * 60000), mgdl: min <= 0 ? 95 : 95 + min * 2
+    }));
+    const r = mealResponse({ time: new Date(t), carbs: 60, ig: 60 });
+    assert.ok(r, 'une réponse partielle reste affichable');
+    assert.equal(r.backMin, null, 'la glycémie n’est jamais redescendue');
+    assert.equal(r.complet, false, 'mais on ne peut rien affirmer sur la 3ᵉ heure');
+    state.glucose = [];
+  });
+});
+
+describe('tracé de la courbe', () => {
+  const X = p => (+p.t % 100000) / 1000;
+  const Y = v => v / 10;
+
+  /* Relier deux points separés par un trou dessinerait une glycémie jamais
+     mesurée. Le trait doit se lever : un « M » de plus dans le chemin SVG. */
+  test('un trou coupe le trait au lieu de l’enjamber', () => {
+    const t = Date.parse('2026-07-29T08:00:00Z');
+    const serre = [0, 5, 10, 15].map(m => ({ t: new Date(t + m * 60000), mgdl: 100 }));
+    assert.equal((gluPath(serre, X, Y).match(/M/g) || []).length, 1, 'série continue : un seul M');
+
+    const troue = [0, 5, 240, 245].map(m => ({ t: new Date(t + m * 60000), mgdl: 100 }));
+    assert.equal((gluPath(troue, X, Y).match(/M/g) || []).length, 2, 'quatre heures sans mesure : le trait se coupe');
+  });
+
+  test('un intervalle de capteur normal ne coupe rien', () => {
+    const t = Date.parse('2026-07-29T08:00:00Z');
+    /* Libre pose un point tous les quarts d'heure : c'est une série continue. */
+    const libre = [0, 15, 30, 45].map(m => ({ t: new Date(t + m * 60000), mgdl: 100 }));
+    assert.equal((gluPath(libre, X, Y).match(/M/g) || []).length, 1);
+  });
+
+  test('un point isolé se dessine sans planter', () => {
+    assert.equal((gluPath([{ t: new Date(), mgdl: 100 }], X, Y).match(/M/g) || []).length, 1);
+    assert.equal(gluPath([], X, Y), '');
   });
 });
 
