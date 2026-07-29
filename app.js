@@ -7,7 +7,7 @@
 
 /* Données séparées : chargées en parallèle du script, mises en cache par le SW */
 const DB = await (await fetch(new URL('./db.json', import.meta.url))).json();
-const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, IG_SRC, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, GP_MECA, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT, GE_PHASES, GE_TIPS, GE_FOODS, GE_RECIPES, GE_ALERT, SPORT_PHASES, SPORT_TIPS, SPORT_FOODS, SPORT_RECIPES, SPORT_ALERT } = DB;
+const { FOODS, PLATES, FAVORITES, RECIPES, MENU_DB, FOODDB, FOODDB2, IG_SRC, GP_PHASES, GP_TIPS, GP_FOODS, GP_RECIPES, GP_ALERT, GP_MECA, GP_SRC, CAKE_PRESETS, RAMADAN_PHASES, RAMADAN_TIPS, RAMADAN_FOODS, RAMADAN_RECIPES, RAMADAN_ALERT, GE_PHASES, GE_TIPS, GE_FOODS, GE_RECIPES, GE_ALERT, SPORT_PHASES, SPORT_TIPS, SPORT_FOODS, SPORT_RECIPES, SPORT_ALERT } = DB;
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -4257,7 +4257,7 @@ function gpMot(nom, cle) {
    Les explications décrivent un fonctionnement digestif. Elles ne prescrivent
    rien, ne fixent aucun seuil et ne disent à personne quoi manger : elles
    donnent de quoi comprendre un classement, et donc de quoi le contester. */
-const meca = id => GP_MECA[id] || { t: id, p: '' };
+const meca = id => GP_MECA[id] || { t: id, p: '', s: null };
 
 const GP_RED_WHY = [
   /* « baguette » est sortie d'ici : une baguette blanche n'a ni son ni
@@ -4282,9 +4282,17 @@ const GP_RED_WHY = [
   /* « mure » au pluriel seulement : « Banane bien mûre » est un adjectif, et
      la baie ne se nomme qu'au pluriel dans la base. Les fruits secs entrent
      ici, au pluriel comme au singulier — c'est ainsi qu'ils sont nommés. */
-  [/kiwi|raisin|cerise|ananas|mangue|agrume|orange|clementine|pamplemousse|figue|datte|pruneau|(?:fruits?|abricots?|raisins?) secs?|framboise|mures\b|groseille|myrtille|cassis/,
+  /* Le fruit entier, pas ce qu'on en a tiré : un jus filtré, un nectar ou une
+     compote n'ont plus ni peau ni pépin — c'est même leur définition. Le
+     motif se reprochait pourtant à « Jus d'orange » et « Jus de raisin ». */
+  [/^(?!(?:jus|nectar|sirop|compote|gelee|smoothie)\b).*?(?:kiwi|raisin|cerise|ananas|mangue|agrume|orange|clementine|pamplemousse|figue|datte|pruneau|(?:fruits?|abricots?|raisins?) secs?|framboise|mures\b|groseille|myrtille|cassis)/,
    'peaux_pepins'],
-  [/gazeu|soda|\bcola|limonade|biere|alcool|^vin |whisky|vodka|rhum|pastis|champagne|cidre|mojito|spritz/,
+  /* Une boisson pétillante ou alcoolisée ne se reconnaît pas toujours à un
+     mot : ni « énergisante », ni « kombucha », ni « panaché », ni « gin
+     tonic » ne contenaient « soda » ou « alcool », et tous passaient pour
+     bien tolérés. Le mot « vin » est exclu quand il désigne une cuisson —
+     « Diots au vin blanc » est un plat, pas une boisson. */
+  [/gazeu|soda|\bcola|limonade|tonic|energisant|kombucha|petillant|biere|alcool|^vin |whisky|vodka|rhum|pastis|champagne|cidre|mojito|spritz|porto|\bkir\b|sangria|margarita|panache|punch|liqueur|digestif|eau-de-vie|tequila|pina colada|cocktail sucre/,
    'gaz'],
   [/kebab|tacos|burger|pizza|steak|entrecote|rumsteck|cordon bleu|brochette|\broti\b|viande en morceaux/,
    'plat_dense'],
@@ -4343,15 +4351,36 @@ const GP_CAT = {
 /* f.lip vaut null quand le champ est un trou du tableau JSON, et
    isFinite(null) renvoie true : il faut écarter null explicitement. */
 const gpFatMesure = f => f.lip != null && isFinite(f.lip);
+
+/* L'alcool apporte 7 kcal par gramme sans être ni glucide ni lipide. Déduire
+   les lipides des calories fait donc d'une eau-de-vie un aliment gras — 20 g
+   pour 100 g, alors qu'elle n'en contient aucun, et l'app le lui reprochait.
+   Quand la valeur n'est pas mesurée, on ne devine pas sur ces boissons-là :
+   leur frein est l'alcool, il est nommé ailleurs. */
+const GP_ALCOOL = /whisky|vodka|\bgin\b|rhum|eau-de-vie|digestif|liqueur|pastis|tequila|biere|\bvin\b|champagne|cidre|porto|\bkir\b|sangria|margarita|mojito|spritz|punch|panache|cocktail sucre|pina colada|apero(?:l|itif)/;
+
 const gpFat = f => gpFatMesure(f) ? +f.lip
+  : GP_ALCOOL.test(normalize(f.n)) ? 0
   : Math.max(0, (f.kcal || 0) - (f.c || 0) * 4 - 60) / 9;
 
 function gpLevel(f) {
   if (f._gp) return f._gp;
   const k = normalize(f.n);
   let lv = null;
-  for (const [ref, v, libelle] of GP_KEYS) {
-    if (gpMot(k, ref)) { lv = v; f._gpsrc = libelle; break; }
+
+  /* Un jus filtré n'est plus le fruit. La table le dit déjà — « Jus de fruit
+     sans pulpe dilué » d'un côté, « Jus avec pulpe, nectars épais » de
+     l'autre — mais la clé « raisin », tirée de « Raisin, cerise, kiwi »,
+     attrapait « Jus de raisin » avant elle et lui collait le niveau du fruit
+     entier, peaux et pépins compris. On tranche donc d'abord sur la forme. */
+  if (GP_JUS.test(k)) {
+    const epais = GP_PULPE.test(k);
+    lv = epais ? 3 : 1;
+    f._gpsrc = epais ? 'Jus avec pulpe, nectars épais' : 'Jus de fruit sans pulpe dilué';
+  } else {
+    for (const [ref, v, libelle] of GP_KEYS) {
+      if (gpMot(k, ref)) { lv = v; f._gpsrc = libelle; break; }
+    }
   }
   if (lv === null) {
     lv = GP_CAT[f.cat] || 2;
@@ -4364,6 +4393,11 @@ function gpLevel(f) {
   f._gp = lv;
   return lv;
 }
+/* Ce qui est tiré d'un fruit plutôt que le fruit lui-même, et ce qui garde
+   assez de matière pour redevenir un frein. */
+const GP_JUS = /^(?:jus|nectar|sirop|citronnade|diabolo)\b/;
+const GP_PULPE = /pulpe|epais|nectar|smoothie|avec morceaux/;
+
 const GP_MARK = { 1:['ok','✅','Bien toléré'], 2:['mid','⚠️','Avec prudence'], 3:['no','⛔','À éviter'] };
 
 /* Le motif court reste visible, l'explication du mécanisme se déplie. Un
@@ -4372,8 +4406,23 @@ const GP_MARK = { 1:['ok','✅','Bien toléré'], 2:['mid','⚠️','Avec pruden
    frein est en cause, et pourquoi ce frein compte ici. */
 function gpWhyHtml(motifs) {
   return motifs.map(m => m.p
-    ? `<details class="gp-det"><summary>${esc(m.t)}</summary><p>${esc(m.p)}</p></details>`
+    ? `<details class="gp-det"><summary>${esc(m.t)}</summary><p>${esc(m.p)}</p>${gpCiteHtml(m.s)}</details>`
     : `<p>${esc(m.t)}</p>`).join('');
+}
+
+/* La même exigence que pour l'index glycémique : une explication sans source
+   vaut ce que vaut celui qui l'écrit. Trois mécanismes n'en portent pas —
+   la distension par le gaz, l'air avalé en mâchant, et le cas où rien ne
+   tranche — et ils le disent plutôt que d'emprunter une référence qui parle
+   d'autre chose. */
+function gpCiteHtml(ids) {
+  if (!ids || !ids.length) return '';
+  const refs = ids.map(id => GP_SRC[id]).filter(Boolean);
+  if (!refs.length) return '';
+  return `<p class="gp-cite">${refs.map(c =>
+    `${esc(c.a.split(',')[0])} et al., <i>${esc(c.t)}</i>, ${esc(c.j)}, ${c.y}, `
+    + `<a href="https://doi.org/${esc(c.doi)}" target="_blank" rel="noopener">doi:${esc(c.doi)}</a>`
+  ).join('<br>')}</p>`;
 }
 
 /* On dit d'où vient le chiffre : mesuré par Ciqual, ou déduit des calories. */
@@ -4414,14 +4463,14 @@ function gpReason(f) {
      table de mécanismes, mais il porte le même frein, donc la même explication. */
   const parGras = seuil => ({
     t: `${lipLabel(fat, f)} : ${seuil}`,
-    p: meca('lipides').p
+    p: meca('lipides').p, s: meca('lipides').s
   });
 
   if (lv === 3) {
     if (fat > 20) out.push(parGras('le gras est le premier frein à la vidange de l’estomac.'));
     if (!out.length && GP_CAT_WHY[f.cat]) {
       const [txt, id] = GP_CAT_WHY[f.cat];
-      out.push({ t: txt, p: meca(id).p });
+      out.push({ t: txt, p: meca(id).p, s: meca(id).s });
     }
     if (!out.length && repere) out.push(repere);
     if (!out.length) out.push({
@@ -4432,7 +4481,8 @@ function gpReason(f) {
   } else if (lv === 1) {
     out.length = 0;
     out.push(green ? meca(green[1]) : repere || {
-      t: 'Texture tendre et peu de gras : l’estomac n’a presque rien à broyer.', p: meca('texture_lisse').p
+      t: 'Texture tendre et peu de gras : l’estomac n’a presque rien à broyer.',
+      p: meca('texture_lisse').p, s: meca('texture_lisse').s
     });
   } else {
     if (fat > 12) out.push(parGras('de quoi ralentir un peu la vidange.'));
@@ -4492,7 +4542,7 @@ function gpRecipeReason(r) {
   const out = GP_RED_WHY.filter(([re]) => re.test(txt)).map(([, id]) => meca(id));
   if (out.length) return out.slice(0, 2);
   return gpRecipeLevel(r) === 1
-    ? [{ t: 'Ingrédients tendres ou liquides : rien qui demande un long broyage.', p: meca('texture_lisse').p }]
+    ? [{ t: 'Ingrédients tendres ou liquides : rien qui demande un long broyage.', p: meca('texture_lisse').p, s: meca('texture_lisse').s }]
     : [{ t: 'Aucun ingrédient franchement problématique, mais rien de spécialement lisse non plus.', p: meca('quantite').p }];
 }
 

@@ -187,6 +187,18 @@ node tools/ig-ref.mjs --apply   # écrit la table IG_SRC dans db.json
 
 La charge glycémique suit la même règle : elle n'est calculée que là où l'IG existe, et n'est dite « glycémique » plutôt qu'« indicative » que là où l'IG est mesuré.
 
+### Le classement gastroparésie s'explique et se conteste
+
+Chaque aliment écarté nomme le frein en cause et l'explique : ce que les lipides déclenchent dans le duodénum, pourquoi les fibres insolubles s'agglomèrent quand les contractions faiblissent, pourquoi le gaz occupe du volume là où le liquide, lui, sort normalement. **15 des 18 mécanismes citent leur source** — [recommandation ACG 2022](https://doi.org/10.14309/ajg.0000000000001874) sur la gastroparésie, et l'[essai contrôlé d'Olausson 2014](https://doi.org/10.1038/ajg.2013.453) sur le régime à petites particules. Les trois autres — la distension par le gaz, l'air avalé en mâchant, et le cas où rien ne tranche — n'en citent aucune, et le disent, plutôt que d'emprunter une référence qui parle d'autre chose.
+
+Ces explications décrivent un fonctionnement digestif. Elles ne prescrivent rien et ne fixent aucun seuil : elles donnent de quoi comprendre un classement, et donc de quoi le contester.
+
+```bash
+node tools/audit-gastro.mjs   # relit les 1 043 classements, cherche l'incohérent
+```
+
+L'outil ne juge pas aliment par aliment — ce serait refaire la table à la main. Il vérifie des **règles de famille** : tout ce qui est alcoolisé doit être écarté pour l'alcool, tout ce qui pétille pour le gaz, et un jus filtré ne doit jamais l'être pour des peaux et des pépins qu'il n'a plus. C'est ainsi qu'on a vu que les boissons énergisantes, le kombucha, le panaché et le gin tonic passaient pour bien tolérés : aucun ne contient le mot « soda » ni le mot « alcool ».
+
 ### Vérifier les valeurs
 
 ```bash

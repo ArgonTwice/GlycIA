@@ -507,6 +507,77 @@ describe('gastroparesie — le motif suit le classement', () => {
   });
 });
 
+/* Familles entieres qui echappaient a leur motif : ni « energisante », ni
+   « kombucha », ni « panache », ni « gin tonic » ne contenaient « soda » ou
+   « alcool », et tous passaient pour bien toleres. C'est le genre de trou
+   qu'on ne voit pas aliment par aliment — d'ou tools/audit-gastro.mjs. */
+describe('gastroparesie — coherence par famille', () => {
+  const niv = n => { const f = ALL.find(x => x.n === n); assert.ok(f, n); return gpLevel(f); };
+  const motif = n => gpReason(ALL.find(x => x.n === n)).map(r => r.t).join(' ');
+
+  test('tout ce qui petille ou contient de l’alcool est ecarte', () => {
+    for (const n of ['Boisson énergisante', 'Kombucha', 'Panaché', 'Kir', 'Sangria',
+                     'Margarita', 'Gin tonic', 'Porto', 'Eau gazeuse', 'Liqueur sucrée'])
+      assert.equal(niv(n), 3, n);
+  });
+
+  test('l’eau plate reste la boisson de reference', () => {
+    assert.equal(niv('Eau plate'), 1);
+  });
+
+  /* Un jus filtre n'a plus ni peau ni pepin : c'est meme sa definition. */
+  test('un jus filtre n’est pas le fruit entier', () => {
+    for (const n of ['Jus de raisin', 'Jus d’ananas', 'Jus d\'ananas', 'Jus d\'orange']) {
+      const f = ALL.find(x => x.n === n);
+      if (!f) continue;
+      assert.equal(gpLevel(f), 1, n);
+      assert.doesNotMatch(motif(n), /Peaux, pépins/, n);
+    }
+  });
+
+  test('un nectar epais, lui, reste ecarte', () => {
+    assert.equal(niv('Nectar d\'abricot'), 3);
+  });
+
+  /* L'alcool apporte 7 kcal/g : deduire les lipides des calories faisait
+     d'une eau-de-vie un aliment a 20 g de gras pour 100 g. */
+  test('un alcool ne se voit pas attribuer des lipides fantomes', () => {
+    for (const n of ['Whisky', 'Vodka / gin', 'Digestif / eau-de-vie', 'Liqueur sucrée']) {
+      const f = ALL.find(x => x.n === n);
+      if (!f || f.lip != null) continue;
+      assert.equal(gpFat(f), 0, n);
+      assert.doesNotMatch(motif(n), /lipides/, n);
+    }
+  });
+});
+
+describe('gastroparesie — sources des mecanismes', () => {
+  test('chaque source citee existe et est complete', () => {
+    for (const [id, m] of Object.entries(DB.GP_MECA)) {
+      if (!m.s) continue;
+      for (const ref of m.s) {
+        const c = DB.GP_SRC[ref];
+        assert.ok(c, `${id} cite « ${ref} », introuvable`);
+        for (const champ of ['t', 'a', 'j', 'y', 'doi']) assert.ok(c[champ], `${ref} sans ${champ}`);
+      }
+    }
+  });
+
+  /* Les freins qui ecartent le plus d'aliments sont ceux qu'il faut pouvoir
+     etayer : le gras et les fibres. */
+  test('les mecanismes principaux sont sources', () => {
+    for (const id of ['lipides', 'fibres_dures', 'peaux_pepins', 'legumineuses', 'friture'])
+      assert.ok(DB.GP_MECA[id].s && DB.GP_MECA[id].s.length, id);
+  });
+
+  /* Trois n'ont pas de source, et c'est assume : mieux vaut le dire que
+     rattacher une reference qui parle d'autre chose. */
+  test('ceux qui n’en ont pas ne font pas semblant', () => {
+    for (const id of ['gaz', 'chewing', 'quantite'])
+      assert.ok(!DB.GP_MECA[id].s, `${id} ne devrait pas citer de source`);
+  });
+});
+
 describe('retirer un repas', () => {
   const repas = (id, nom) => ({ id, name: nom, time: new Date(), carbs: 30, ig: 50, icon: '🍽️' });
 
@@ -833,7 +904,9 @@ describe('calculs de repas', () => {
 });
 
 describe('intégrité de la base', () => {
-  test('1042 aliments chargés', () => assert.equal(ALL.length, 1042));
+  /* 1 043 depuis que « Eau plate ou gazeuse » a ete scindee : le nom
+     melangeait deux boissons dont l'une est bien toleree et l'autre non. */
+  test('1043 aliments chargés', () => assert.equal(ALL.length, 1043));
   test('les valeurs restent dans des bornes plausibles', () => {
     for (const f of ALL) {
       assert.ok(f.n && f.n.length, 'nom manquant');
